@@ -1,6 +1,7 @@
 import gen.gcdm_netcdf_pb2 as grpc_msg
 import netCDF4 as nc4
 import numpy as np
+import xarray as xr
 import re
 
 class gRPC_netCDF():
@@ -98,10 +99,10 @@ class netCDF_Encode(gRPC_netCDF):
                     else
                         section.append(grpc_msg.Range(start=int(dim), size=1, stride=1)
                 else:
-                    range_attr = iter(["start", "end", "stride"])
+                    range_attr = ["start", "end", "stride"]
                     rng = grpc_msg.Range()
-                    for component in dim:
-                        setattr(rng, next(range_attr), int(component))
+                    for attr, val in zip(range_attr, dim):
+                        setattr(rng, attr, int(val))
                     section.append(rng)
             
             # bone, this is a good opportunity for error code of invalid dimensions
@@ -209,7 +210,72 @@ class netCDF_Encode(gRPC_netCDF):
 
     def EncodeDimensionsVariable(self, variable):
         return [grpc_msg.Dimension(name=name, length=length) for name, length in zip(variable.dimensions, variable.shape)]
+    
+class netCDF_Decode(gRPC_netCDF):
+
+    def __init__(self):
+        super().__init__()
+
+    # high level decode stuff
+    def GenerateFileFromResponse(self, header, data):
         
+        # create new, empty file
+        self.ds = xr.Dataset()
+
+        # unpack header
+        headerError = header.error  # bone add in error handling
+        headerVersion = header.version
+        self.DecodeHeaderResponse(header.header)
+        
+        # unpack data
+        dataError = data.error  # bone add in error handling
+        dataVersion = data.version
+        dataLocation = data.location
+        dataVariableSpec = data.variable_spec
+        dataVariableFullName = data.var_full_name
+        self.DecodeDataResponse(dataVariableFullName, data.section, data.data)
+
+        return self.ds
+
+    def DecodeHeaderResponse(self, header):
+        group = header.root
+        self.ds.expand_dims({dim.name:dim.value for dim in group.dims})
+        for var in group.vars:
+            da = xr.DataArray()
+            da.expand_dims({dim.name:dim.value for dim in var.shapes})
+            da.attrs.update({attr.name:self.DecodeData(attr.data) for attr in var.atts})
+            self.ds.update({var.name:da})
+
+    def DecodeDataResponse(self, varName, section, data):
+        slices = [slice(rng.start, rng.start+rng.stop, rng.stride) for rng in section]
+        pack_array = np.empty([v for v in dict(self.ds.dims).values()])
+        raw_data = np.array(self.DecodeData(data)).reshape(data.shapes)
+        self.ds.variables[varName].values = pack_array[tuple(slices)]
+
+    def DecodeData(self, data):
+        if isinstance(data.data_type, (grpc_msg.DATA_TYPE_BYTE)):
+            return [d for d in data.bdata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_SHORT, grpc_msg.DATA_TYPE_INT)):
+            return [d for d in data.idata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_USHORT, grpc_msg.DATA_TYPE_UINT)):
+            return [d for d in data.uidata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_LONG)):
+            return [d for d in data.ldata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_ULONG)):
+            return [d for d in data.uldata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_FLOAT)):
+            return [d for d in data.fdata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_DOUBLE)):
+            return [d for d in data.ddata]
+        elif isinstance(data.data_type, (grpc_msg.DATA_TYPE_STRING)):
+            return [d for d in data.sdata]
+        else:
+            raise NotImplementedError("Data type not supported")
+
+#    def DecodeData(self, section, data):
+#        ???
+
+
 
 if __name__=="__main__":
     hr = grpc_msg.HeaderRequest(location="test2.nc")
