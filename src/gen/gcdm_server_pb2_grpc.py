@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from ucar.gcdm import gcdm_grid_pb2 as ucar_dot_gcdm_dot_gcdm__grid__pb2
-from ucar.gcdm import gcdm_netcdf_pb2 as ucar_dot_gcdm_dot_gcdm__netcdf__pb2
+import gen.gcdm_grid_pb2 as ucar_dot_gcdm_dot_gcdm__grid__pb2
+import gen.gcdm_netcdf_pb2 as ucar_dot_gcdm_dot_gcdm__netcdf__pb2
 
 
 class GcdmStub(object):

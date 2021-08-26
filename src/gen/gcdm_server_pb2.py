@@ -11,8 +11,8 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from ucar.gcdm import gcdm_netcdf_pb2 as ucar_dot_gcdm_dot_gcdm__netcdf__pb2
-from ucar.gcdm import gcdm_grid_pb2 as ucar_dot_gcdm_dot_gcdm__grid__pb2
+import gen.gcdm_netcdf_pb2 as ucar_dot_gcdm_dot_gcdm__netcdf__pb2
+import gen.gcdm_grid_pb2 as ucar_dot_gcdm_dot_gcdm__grid__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
