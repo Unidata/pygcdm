@@ -3,6 +3,7 @@ import netCDF4 as nc4
 import numpy as np
 import xarray as xr
 import re
+import math
 
 class gRPC_netCDF():
     def __init__(self):
@@ -80,8 +81,8 @@ class netCDF_Encode(gRPC_netCDF):
         variable_spec = request.variable_spec
         varName, section = self.InterpretSpec(request.variable_spec, nc)
         var_full_name = nc.variables[varName].group().name + nc.variables[varName].name
-        variable = nc.variables[varName][[slice(rng.start, rng.start+rng.size, rng.stride) for rng in section.ranges]]
-        print(variable)
+        slices = self.InterpretSection(section)
+        variable = nc.variables[varName][(*slices,)]
         data_type = self.GetGRPCType(variable.dtype.type)
         data = self.EncodeData(variable, data_type)
 
@@ -93,6 +94,18 @@ class netCDF_Encode(gRPC_netCDF):
                 section=section,
                 data=data)
 
+    def InterpretSection(self, section):
+        slices = []
+        for rng in section.ranges:
+            if rng.size == 1:
+                slices.append(rng.start)
+            else:
+                # empty fields default to zero; numpy can't do zero step indexing
+                if rng.stride == 0:
+                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, 1))
+                else:
+                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
+        return slices
 
     def InterpretSpec(self, var_spec, nc):
         # using definition from: 
@@ -104,17 +117,26 @@ class netCDF_Encode(gRPC_netCDF):
             varName, dims, _ = re.split("\(|\)", var_spec)
             ranges = []
             for ncdim_idx, dim in enumerate(dims.split(",")):
+                # handle : condition
                 if dim == ":":
                     ranges.append(grpc_msg.Range(size=ncdim_sizes[ncdim_idx], stride=1))
+                # handle  single index condition
                 elif str.isdigit(dim):
                     if int(dim) == 0:
                         ranges.append(grpc_msg.Range(size=1, stride=1))
                     else:
                         ranges.append(grpc_msg.Range(start=int(dim), size=1, stride=1))
+                # else, unpack the range
                 else:
-                    range_attr = ["start", "end", "stride"]
+                    range_attr = ["start", "size", "stride"]
                     rng = grpc_msg.Range()
-                    for attr, val in zip(range_attr, dim):
+                    start, end, *stride = [int(i) for i in dim.split(":")]
+                    if len(stride):  # max one item in list
+                        stride = stride.pop()
+                    else:
+                        stride = 1
+                    range_vals = [start, math.ceil((end-start+1)/stride), stride]
+                    for attr, val in zip(range_attr, range_vals):
                         setattr(rng, attr, int(val))
                     ranges.append(rng)
             
@@ -122,7 +144,7 @@ class netCDF_Encode(gRPC_netCDF):
             section = grpc_msg.Section(ranges=ranges)
         else:
             varName = var_spec
-            section = grpc_msg.Section()  # empty
+            section = grpc_msg.Section(ranges=[grpc_msg.Range(size=size, stride=1) for size in ncdim_sizes])  
 
         return varName, section
 
@@ -324,9 +346,10 @@ class netCDF_Decode(gRPC_netCDF):
 if __name__=="__main__":
     encoder = netCDF_Encode()
     loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    spec = "analysed_sst(1,10,121)"
+    spec = "analysed_sst(0,10,121)"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
     data_response = encoder.GenerateDataFromRequest(data_request)
-    print(response)
+    print("ran successfully")
+    print(data_response.section)
