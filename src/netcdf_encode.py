@@ -54,6 +54,19 @@ class gRPC_netCDF():
         code = 0
         return grpc_msg.Error(message=message, code=code)
 
+    def InterpretSection(self, section):
+        slices = []
+        for rng in section.ranges:
+            if rng.size == 1:
+                slices.append(rng.start)
+            else:
+                # empty fields default to zero; numpy can't do zero step indexing
+                if rng.stride == 0:
+                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, 1))
+                else:
+                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
+        return slices
+
 class netCDF_Encode(gRPC_netCDF):
 
     def __init__(self):
@@ -93,19 +106,6 @@ class netCDF_Encode(gRPC_netCDF):
                 var_full_name=var_full_name,
                 section=section,
                 data=data)
-
-    def InterpretSection(self, section):
-        slices = []
-        for rng in section.ranges:
-            if rng.size == 1:
-                slices.append(rng.start)
-            else:
-                # empty fields default to zero; numpy can't do zero step indexing
-                if rng.stride == 0:
-                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, 1))
-                else:
-                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
-        return slices
 
     def InterpretSpec(self, var_spec, nc):
         # using definition from: 
@@ -181,9 +181,6 @@ class netCDF_Encode(gRPC_netCDF):
                 atts=atts,
                 data=data)
 
-
-
-    
     ## ATTRIBUTE STUFF
     def EncodeAttributes(self, obj):
         attributes = []
@@ -281,42 +278,45 @@ class netCDF_Decode(gRPC_netCDF):
 
     def __init__(self):
         super().__init__()
-
-    # high level decode stuff
-    def GenerateFileFromResponse(self, header, data):
         
         # create new, empty file
         self.ds = xr.Dataset()
 
+    # high level decode stuff
+    def GenerateFileFromResponse(self, header, data):
+
         # unpack header
         headerError = header.error  # bone add in error handling
         headerVersion = header.version
-        self.DecodeHeaderResponse(header.header)
         
         # unpack data
         dataError = data.error  # bone add in error handling
         dataVersion = data.version
         dataLocation = data.location
         dataVariableSpec = data.variable_spec
-        dataVariableFullName = data.var_full_name
-        self.DecodeDataResponse(dataVariableFullName, data.section, data.data)
+        dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
+
+        # decode data
+        self.DecodeResponse(header.header.root, dataVariableFullName, data.section, data.data)
 
         return self.ds
 
-    def DecodeHeaderResponse(self, header):
-        group = header.root
-        self.ds.expand_dims({dim.name:dim.value for dim in group.dims})
-        for var in group.vars:
-            da = xr.DataArray()
-            da.expand_dims({dim.name:dim.value for dim in var.shapes})
-            da.attrs.update({attr.name:self.DecodeData(attr.data) for attr in var.atts})
-            self.ds.update({var.name:da})
+    def DecodeResponse(self, group, varName, section, data):
+        # assign dimensions, update attributes
+        # coordinates are stored as variables so we process them when iterating through vars
+        self.ds = self.ds.expand_dims(dim={dim.name:dim.length for dim in group.dims})
+        self.ds.attrs.update({attr.name:self.DecodeData(attr.data) for attr in group.atts})  # this returns list of data
 
-    def DecodeDataResponse(self, varName, section, data):
-        slices = [slice(rng.start, rng.start+rng.stop, rng.stride) for rng in section]
-        pack_array = np.empty([v for v in dict(self.ds.dims).values()])
-        raw_data = np.array(self.DecodeData(data)).reshape(data.shapes)
-        self.ds.variables[varName].values = pack_array[tuple(slices)]
+        for var in group.vars:
+            self.ds[var.name] = xr.DataArray(
+                    data = np.array(self.DecodeData(var.data)).reshape(var.data.shapes),
+                    dims = [dim.name for dim in var.shapes],
+                    attrs = {attr.name:self.DecodeData(attr.data) for attr in var.atts},
+                    )
+
+            # set variable as coordinate
+            if var.name in self.ds.dims.keys():
+                self.ds = self.ds.set_coords(var.name)
 
     def DecodeData(self, data):
         if data.data_type in [grpc_msg.DATA_TYPE_BYTE]:
@@ -334,22 +334,27 @@ class netCDF_Decode(gRPC_netCDF):
         elif data.data_type in [grpc_msg.DATA_TYPE_DOUBLE]:
             return [d for d in data.ddata]
         elif data.data_type in [grpc_msg.DATA_TYPE_STRING]:
-            return [d for d in data.sdata]
+            return "".join([d for d in data.sdata])
         else:
             raise NotImplementedError("Data type not supported")
-
-#    def DecodeData(self, section, data):
-#        ???
-
 
 
 if __name__=="__main__":
     encoder = netCDF_Encode()
     loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    spec = "analysed_sst(0,10,121)"
+    spec = "analysed_sst(0,100:102,121:125)"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
     data_response = encoder.GenerateDataFromRequest(data_request)
-    print("ran successfully")
-    print(data_response.section)
+#    print(f"header_response = \n")
+#    print(header_response.header.root.atts)
+#    print(header_response.header.root.vars)
+
+    decoder = netCDF_Decode()
+    nf = decoder.GenerateFileFromResponse(header_response, data_response)
+    print(nf)
+
+
+
+
