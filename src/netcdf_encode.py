@@ -8,6 +8,7 @@ import math
 class gRPC_netCDF():
     def __init__(self):
         self.typeDict = self.GenTypeDict()
+        self.messageDict = self.GenMessageTypeDict()
     
     def GenTypeDict(self):
         # BONE work in progress
@@ -38,6 +39,20 @@ class gRPC_netCDF():
                 np.uint64:grpc_msg.DATA_TYPE_ULONG,
                 np.uint:grpc_msg.DATA_TYPE_ULONG,
                 }
+
+    def GenMessageTypeDict(self):
+        return  {
+                grpc_msg.DATA_TYPE_BYTE:"bdata",
+                grpc_msg.DATA_TYPE_SHORT:"idata",
+                grpc_msg.DATA_TYPE_INT:"idata",
+                grpc_msg.DATA_TYPE_USHORT:"uidata",
+                grpc_msg.DATA_TYPE_UINT:"uidata",
+                grpc_msg.DATA_TYPE_LONG:"ldata",
+                grpc_msg.DATA_TYPE_ULONG:"uldata",
+                grpc_msg.DATA_TYPE_FLOAT:"fdata",
+                grpc_msg.DATA_TYPE_DOUBLE:"ddata",
+                grpc_msg.DATA_TYPE_STRING:"sdata",
+                }
     
     def GetGRPCType(self, data_type):
         try:
@@ -45,11 +60,17 @@ class gRPC_netCDF():
         except:
             raise NotImplementedError("Type not supported")
 
+    def GetMessageDataType(self, data_type):
+        # find data type to pack message, error if data_type not found in dict
+        try:
+            return self.messageDict[data_type]
+        except:
+            raise NotImplementedError("Incorrect message data type")
+
     def GenerateError(self):
         # BONE idea:
         # 1. check for errors with java implementation
-        # 2. this should probably broken out into a grpc parent class
-        # 3. have errors reflect what you punted on
+        # 2. have errors reflect what you punted on
         message = "Dummy error" # bone
         code = 0
         return grpc_msg.Error(message=message, code=code)
@@ -231,24 +252,11 @@ class netCDF_Encode(gRPC_netCDF):
             data = np.asarray(obj).flatten().tolist()
             shapes = np.asarray(obj).shape
 
-        if data_type in [grpc_msg.DATA_TYPE_BYTE]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, bdata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_SHORT, grpc_msg.DATA_TYPE_INT]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, idata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_USHORT, grpc_msg.DATA_TYPE_UINT]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, uidata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_LONG]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, ldata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_ULONG]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, uldata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_FLOAT]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, fdata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_DOUBLE]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, ddata=data)
-        elif data_type in [grpc_msg.DATA_TYPE_STRING]:
-            return grpc_msg.Data(data_type=data_type, shapes=shapes, sdata=data)
-        else:
-            raise NotImplementedError("Data type not supported")
+        # find data type to pack message, error if data_type not found in dict
+        dtype = self.GetMessageDataType(data_type)
+        dmsg = grpc_msg.Data(data_type=data_type, shapes=shapes)
+        getattr(dmsg, dtype).extend(data) # get attr returns and iter object which we can then extend code onto
+        return dmsg
 
     ## DIMENSIONS STUFF
     def EncodeDimension(self, obj):
@@ -319,27 +327,15 @@ class netCDF_Decode(gRPC_netCDF):
                 self.ds = self.ds.set_coords(var.name)
 
     def DecodeData(self, data):
-        if data.data_type in [grpc_msg.DATA_TYPE_BYTE]:
-            return [d for d in data.bdata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_SHORT, grpc_msg.DATA_TYPE_INT]:
-            return [d for d in data.idata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_USHORT, grpc_msg.DATA_TYPE_UINT]:
-            return [d for d in data.uidata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_LONG]:
-            return [d for d in data.ldata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_ULONG]:
-            return [d for d in data.uldata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_FLOAT]:
-            return [d for d in data.fdata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_DOUBLE]:
-            return [d for d in data.ddata]
-        elif data.data_type in [grpc_msg.DATA_TYPE_STRING]:
-            return "".join([d for d in data.sdata])
+        dtype = self.GetMessageDataType(data.data_type)
+        if dtype == "sdata":
+            # want string data as contiguous string not list
+            return "".join(getattr(data, dtype))  
         else:
-            raise NotImplementedError("Data type not supported")
+            # since field is repeated, will always return a list even if one element. This returns a scalar where appropriate
+            return getattr(data, dtype) if len(getattr(data, dtype)) > 1 else getattr(data, dtype)[0]
 
-
-if __name__=="__main__":
+def bone_func():
     encoder = netCDF_Encode()
     loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
     spec = "analysed_sst(0,100:102,121:125)"
@@ -347,14 +343,11 @@ if __name__=="__main__":
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
     data_response = encoder.GenerateDataFromRequest(data_request)
-#    print(f"header_response = \n")
-#    print(header_response.header.root.atts)
-#    print(header_response.header.root.vars)
 
     decoder = netCDF_Decode()
     nf = decoder.GenerateFileFromResponse(header_response, data_response)
-    print(nf)
+    return nf
 
-
-
-
+if __name__ == '__main__':
+    bone_func()
+    print("ran no errors")
