@@ -79,7 +79,7 @@ class gRPC_netCDF():
         slices = []
         for rng in section.ranges:
             if rng.size == 1:
-                slices.append(rng.start)
+                slices.append(slice(rng.start, rng.start+1))
             else:
                 # empty fields default to zero; numpy can't do zero step indexing
                 if rng.stride == 0:
@@ -88,51 +88,10 @@ class gRPC_netCDF():
                     slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
         return slices
 
-class netCDF_Encode(gRPC_netCDF):
-
-    def __init__(self):
-        super().__init__()
-
-    ## HIGH LEVEL REQUEST STUFF
-
-    def GenerateHeaderFromRequest(self, request):
-        nc = nc4.Dataset(request.location)
-        nc.set_auto_maskandscale(False)
-        error = self.GenerateError()  # BONE this is dummy, need to figure out error handling
-        version = 1 # BONE, this is dummy
-        header = grpc_msg.Header(location=request.location,
-                root = self.EncodeGroup(nc)
-                )
-        return grpc_msg.HeaderResponse(error=error,
-                version=version,
-                header=header)
-
-    def GenerateDataFromRequest(self, request):
-        nc = nc4.Dataset(request.location)
-        error = self.GenerateError()  # BONE this is dummy, need to figure out error handling
-        version = 1 # BONE, this is dummy
-        location = request.location
-        variable_spec = request.variable_spec
-        varName, section = self.InterpretSpec(request.variable_spec, nc)
-        var_full_name = nc.variables[varName].group().name + nc.variables[varName].name
-        slices = self.InterpretSection(section)
-        variable = nc.variables[varName][(*slices,)]
-        data_type = self.GetGRPCType(variable.dtype.type)
-        data = self.EncodeData(variable, data_type)
-
-        return grpc_msg.DataResponse(error=error,
-                version=version,
-                location=location,
-                variable_spec=variable_spec,
-                var_full_name=var_full_name,
-                section=section,
-                data=data)
-
-    def InterpretSpec(self, var_spec, nc):
+    def InterpretSpec(self, var_spec, ncdim_sizes):
         # using definition from: 
         # https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html
 
-        ncdim_sizes = [dim.size for dim in nc.dimensions.values()]
         
         if "(" in var_spec:
             varName, dims, _ = re.split("\(|\)", var_spec)
@@ -169,11 +128,59 @@ class netCDF_Encode(gRPC_netCDF):
 
         return varName, section
 
+
+class netCDF_Encode(gRPC_netCDF):
+
+    def __init__(self):
+        super().__init__()
+
+    ## HIGH LEVEL REQUEST STUFF
+
+    def GenerateHeaderFromRequest(self, request):
+        nc = nc4.Dataset(request.location)
+        nc.set_auto_maskandscale(False)
+        error = self.GenerateError()  # BONE this is dummy, need to figure out error handling
+        version = 1 # BONE, this is dummy
+        # BONE need to include title, id in header
+        header = grpc_msg.Header(location=request.location,
+                root = self.EncodeGroup(nc)
+                )
+        return grpc_msg.HeaderResponse(error=error,
+                version=version,
+                header=header)
+
+    def GenerateDataFromRequest(self, request):
+        nc = nc4.Dataset(request.location)
+        nc.set_auto_maskandscale(False)
+        error = self.GenerateError()  # BONE this is dummy, need to figure out error handling
+        version = 1 # BONE, this is dummy
+        location = request.location
+        variable_spec = request.variable_spec
+        varName, section = self.InterpretSpec(request.variable_spec, [dim.size for dim in nc.dimensions.values()])
+        var_full_name = nc.variables[varName].group().name + nc.variables[varName].name
+        slices = self.InterpretSection(section)
+        variable = nc.variables[varName][(*slices,)]
+        data_type = self.GetGRPCType(variable.dtype.type)
+        data = self.EncodeData(variable, data_type)
+
+        return grpc_msg.DataResponse(error=error,
+                version=version,
+                location=location,
+                variable_spec=variable_spec,
+                var_full_name=var_full_name,
+                section=section,
+                data=data)
+
     ## GROUP STUFF
     def EncodeGroup(self, group):
         name = group.name
         dims = self.EncodeDimension(group)
-        variables = self.EncodeGroupVariables(group)
+        dim_names = [dim.name for dim in dims]
+        variables = [
+                self.EncodeVariable(variable) if variable.name in dim_names 
+                else self.EncodeVariable(variable, coords_only=True)
+                for variable in group.variables.values()
+                ]
         # BONE need to add support for structures
         atts = self.EncodeAttributes(group)
         groups = [self.EncodeGroup(subgroup) for subgroup in group.groups.values()]
@@ -187,15 +194,13 @@ class netCDF_Encode(gRPC_netCDF):
 
 
     ## VARIABLE STUFF
-    def EncodeGroupVariables(self, group):
-        return [self.EncodeVariable(variable) for variable in group.variables.values()]
 
-    def EncodeVariable(self, variable):
+    def EncodeVariable(self, variable, coords_only=False):
         name = variable.name
         shapes = self.EncodeDimension(variable)
         atts = self.EncodeAttributes(variable)
         data_type = self.GetGRPCType(variable.dtype.type)
-        data = self.EncodeData(variable, data_type)
+        data = self.EncodeData(variable, data_type) if not coords_only else grpc_msg.Data()
         return grpc_msg.Variable(name=name,
                 data_type=data_type,
                 shapes=shapes,
@@ -286,8 +291,6 @@ class netCDF_Decode(gRPC_netCDF):
 
     def __init__(self):
         super().__init__()
-        
-        # create new, empty file
         self.ds = xr.Dataset()
 
     # high level decode stuff
@@ -301,30 +304,38 @@ class netCDF_Decode(gRPC_netCDF):
         dataError = data.error  # bone add in error handling
         dataVersion = data.version
         dataLocation = data.location
-        dataVariableSpec = data.variable_spec
+        varName, section = self.InterpretSpec(data.variable_spec, [dim.length for dim in header.header.root.dims])
         dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
 
         # decode data
-        self.DecodeResponse(header.header.root, dataVariableFullName, data.section, data.data)
+        self.DecodeResponse(header.header.root, varName, data.data)
 
         return self.ds
 
-    def DecodeResponse(self, group, varName, section, data):
+    def DecodeResponse(self, group, varName, data):
         # assign dimensions, update attributes
         # coordinates are stored as variables so we process them when iterating through vars
-        self.ds = self.ds.expand_dims(dim={dim.name:dim.length for dim in group.dims})
         self.ds.attrs.update({attr.name:self.DecodeData(attr.data) for attr in group.atts})  # this returns list of data
 
         for var in group.vars:
-            self.ds[var.name] = xr.DataArray(
-                    data = np.array(self.DecodeData(var.data)).reshape(var.data.shapes),
-                    dims = [dim.name for dim in var.shapes],
-                    attrs = {attr.name:self.DecodeData(attr.data) for attr in var.atts},
-                    )
+# BONE sign off:
+# currently this works for non-sliced data
+# now what I need to do is:
+# 1. fix coord data stuff in the encoding portion to reflect slicing which should be trivial
+# 2. see if that works. Currently sliced data decoding doesn't work because the transmitted data shape doesn't match the coords:w
 
-            # set variable as coordinate
-            if var.name in self.ds.dims.keys():
-                self.ds = self.ds.set_coords(var.name)
+            # first handle coordinates
+            if var.name in [dim.name for dim in group.dims]:
+                coord_data = self.DecodeData(var.data)
+                coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
+                self.ds = self.ds.expand_dims(dim={var.name:coord_data})
+
+            if var.name == varName:
+                self.ds[var.name] = xr.DataArray(
+                        dims = [dim.name for dim in var.shapes],
+                        attrs = {attr.name:self.DecodeData(attr.data) for attr in var.atts},
+                        data = np.array(self.DecodeData(data)).reshape(data.shapes),  # BONE, data comes from the data, var.data comes from header. This is confusing and variables should probably be reworded
+                        )
 
     def DecodeData(self, data):
         dtype = self.GetMessageDataType(data.data_type)
@@ -338,7 +349,8 @@ class netCDF_Decode(gRPC_netCDF):
 def bone_func():
     encoder = netCDF_Encode()
     loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    spec = "analysed_sst(0,100:102,121:125)"
+    #spec = "analysed_sst(0,100:102,121:125)"
+    spec = "analysed_sst"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
@@ -346,7 +358,7 @@ def bone_func():
 
     decoder = netCDF_Decode()
     nf = decoder.GenerateFileFromResponse(header_response, data_response)
-    return nf
+    return nf, header_response, data_response
 
 if __name__ == '__main__':
     bone_func()
