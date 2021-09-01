@@ -305,30 +305,26 @@ class netCDF_Decode(gRPC_netCDF):
         dataVersion = data.version
         dataLocation = data.location
         varName, section = self.InterpretSpec(data.variable_spec, [dim.length for dim in header.header.root.dims])
+        slice_dict = dict(zip([dim.name for dim in header.header.root.dims], self.InterpretSection(section)))
         dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
 
         # decode data
-        self.DecodeResponse(header.header.root, varName, data.data)
+        self.DecodeResponse(header.header.root, varName, data.data, slice_dict)
 
         return self.ds
 
-    def DecodeResponse(self, group, varName, data):
+    def DecodeResponse(self, group, varName, data, slice_dict):
         # assign dimensions, update attributes
         # coordinates are stored as variables so we process them when iterating through vars
         self.ds.attrs.update({attr.name:self.DecodeData(attr.data) for attr in group.atts})  # this returns list of data
 
         for var in group.vars:
-# BONE sign off:
-# currently this works for non-sliced data
-# now what I need to do is:
-# 1. fix coord data stuff in the encoding portion to reflect slicing which should be trivial
-# 2. see if that works. Currently sliced data decoding doesn't work because the transmitted data shape doesn't match the coords:w
 
             # first handle coordinates
             if var.name in [dim.name for dim in group.dims]:
                 coord_data = self.DecodeData(var.data)
                 coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
-                self.ds = self.ds.expand_dims(dim={var.name:coord_data})
+                self.ds = self.ds.expand_dims(dim={var.name:coord_data[slice_dict[var.name]]})
 
             if var.name == varName:
                 self.ds[var.name] = xr.DataArray(
@@ -349,8 +345,8 @@ class netCDF_Decode(gRPC_netCDF):
 def bone_func():
     encoder = netCDF_Encode()
     loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    #spec = "analysed_sst(0,100:102,121:125)"
-    spec = "analysed_sst"
+    spec = "analysed_sst(0,100:102,121:125)"
+    #spec = "analysed_sst"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
@@ -358,6 +354,7 @@ def bone_func():
 
     decoder = netCDF_Decode()
     nf = decoder.GenerateFileFromResponse(header_response, data_response)
+    print(nf)
     return nf, header_response, data_response
 
 if __name__ == '__main__':
