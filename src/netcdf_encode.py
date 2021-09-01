@@ -88,45 +88,6 @@ class gRPC_netCDF():
                     slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
         return slices
 
-    def InterpretSpec(self, var_spec, ncdim_sizes):
-        # using definition from: 
-        # https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html
-
-        
-        if "(" in var_spec:
-            varName, dims, _ = re.split("\(|\)", var_spec)
-            ranges = []
-            for ncdim_idx, dim in enumerate(dims.split(",")):
-                # handle : condition
-                if dim == ":":
-                    ranges.append(grpc_msg.Range(size=ncdim_sizes[ncdim_idx], stride=1))
-                # handle  single index condition
-                elif str.isdigit(dim):
-                    if int(dim) == 0:
-                        ranges.append(grpc_msg.Range(size=1, stride=1))
-                    else:
-                        ranges.append(grpc_msg.Range(start=int(dim), size=1, stride=1))
-                # else, unpack the range
-                else:
-                    range_attr = ["start", "size", "stride"]
-                    rng = grpc_msg.Range()
-                    start, end, *stride = [int(i) for i in dim.split(":")]
-                    if len(stride):  # max one item in list
-                        stride = stride.pop()
-                    else:
-                        stride = 1
-                    range_vals = [start, math.ceil((end-start+1)/stride), stride]
-                    for attr, val in zip(range_attr, range_vals):
-                        setattr(rng, attr, int(val))
-                    ranges.append(rng)
-            
-            # bone, this is a good opportunity for error code of invalid dimensions
-            section = grpc_msg.Section(ranges=ranges)
-        else:
-            varName = var_spec
-            section = grpc_msg.Section(ranges=[grpc_msg.Range(size=size, stride=1) for size in ncdim_sizes])  
-
-        return varName, section
 
 
 class netCDF_Encode(gRPC_netCDF):
@@ -156,7 +117,7 @@ class netCDF_Encode(gRPC_netCDF):
         version = 1 # BONE, this is dummy
         location = request.location
         variable_spec = request.variable_spec
-        varName, section = self.InterpretSpec(request.variable_spec, [dim.size for dim in nc.dimensions.values()])
+        varName, section = self.InterpretSpec(request.variable_spec, nc)
         var_full_name = nc.variables[varName].group().name + nc.variables[varName].name
         slices = self.InterpretSection(section)
         variable = nc.variables[varName][(*slices,)]
@@ -170,6 +131,47 @@ class netCDF_Encode(gRPC_netCDF):
                 var_full_name=var_full_name,
                 section=section,
                 data=data)
+
+    def InterpretSpec(self, var_spec, nc):
+        # using definition from: 
+        # https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html
+
+        
+        if "(" in var_spec:
+            var_name, dims, _ = re.split("\(|\)", var_spec)
+            ranges = []
+            for dim_idx, dim in enumerate(dims.split(",")):
+                # handle : condition
+                if dim == ":":
+                    ranges.append(grpc_msg.Range(size=nc.variables[var_name].get_dims()[dim_idx].size, stride=1))
+                # handle  single index condition
+                elif str.isdigit(dim):
+                    if int(dim) == 0:
+                        ranges.append(grpc_msg.Range(size=1, stride=1))
+                    else:
+                        ranges.append(grpc_msg.Range(start=int(dim), size=1, stride=1))
+                # else, unpack the range
+                else:
+                    range_attr = ["start", "size", "stride"]
+                    rng = grpc_msg.Range()
+                    start, end, *stride = [int(i) for i in dim.split(":")]
+                    if len(stride):  # max one item in list
+                        stride = stride.pop()
+                    else:
+                        stride = 1
+                    range_vals = [start, math.ceil((end-start+1)/stride), stride]
+                    for attr, val in zip(range_attr, range_vals):
+                        setattr(rng, attr, int(val))
+                    ranges.append(rng)
+            
+            # bone, this is a good opportunity for error code of invalid dimensions
+            section = grpc_msg.Section(ranges=ranges)
+        else:
+            var_name = var_spec
+            section = grpc_msg.Section(ranges=[grpc_msg.Range(size=dim.size, stride=1) for dim in nc.variables[var_name].get_dims()])  
+
+        return var_name, section
+
 
     ## GROUP STUFF
     def EncodeGroup(self, group):
@@ -294,7 +296,7 @@ class netCDF_Decode(gRPC_netCDF):
         self.ds = xr.Dataset()
 
     # high level decode stuff
-    def GenerateFileFromResponse(self, header, data):
+    def GenerateFileFromResponse(self, header, data, as_netcdf=False):
 
         # unpack header
         headerError = header.error  # bone add in error handling
@@ -304,14 +306,18 @@ class netCDF_Decode(gRPC_netCDF):
         dataError = data.error  # bone add in error handling
         dataVersion = data.version
         dataLocation = data.location
-        varName, section = self.InterpretSpec(data.variable_spec, [dim.length for dim in header.header.root.dims])
-        slice_dict = dict(zip([dim.name for dim in header.header.root.dims], self.InterpretSection(section)))
+        varName = data.variable_spec.split("(")[0]
+        slice_dict = dict(zip([dim.name for dim in header.header.root.dims], self.InterpretSection(data.section)))
         dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
 
         # decode data
         self.DecodeResponse(header.header.root, varName, data.data, slice_dict)
 
-        return self.ds
+        # return file
+        if as_netcdf:
+            return self.ds.to_netcdf()
+        else:
+            return self.ds
 
     def DecodeResponse(self, group, varName, data, slice_dict):
         # assign dimensions, update attributes
@@ -324,7 +330,10 @@ class netCDF_Decode(gRPC_netCDF):
             if var.name in [dim.name for dim in group.dims]:
                 coord_data = self.DecodeData(var.data)
                 coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
-                self.ds = self.ds.expand_dims(dim={var.name:coord_data[slice_dict[var.name]]})
+                if var.name in self.ds.dims:
+                    self.ds = self.ds.assign_coords({var.name:coord_data[slice_dict[var.name]]})
+                else:
+                    self.ds = self.ds.expand_dims(dim={var.name:coord_data[slice_dict[var.name]]})
 
             if var.name == varName:
                 self.ds[var.name] = xr.DataArray(
@@ -344,9 +353,10 @@ class netCDF_Decode(gRPC_netCDF):
 
 def bone_func():
     encoder = netCDF_Encode()
-    loc = '/Users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    spec = "analysed_sst(0,100:102,121:125)"
-    #spec = "analysed_sst"
+    loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
+    spec = "sst_anomaly(0,100:102,121:125)"
+    loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test.nc'
+    spec = "Rad(1,1)"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
