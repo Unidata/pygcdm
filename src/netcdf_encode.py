@@ -307,13 +307,18 @@ class netCDF_Decode(gRPC_netCDF):
         dataVersion = data.version
         dataLocation = data.location
         varName = data.variable_spec.split("(")[0]
-        slice_dict = dict(zip([dim.name for dim in header.header.root.dims], self.InterpretSection(data.section)))
         dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
+
+        # create a list of slices from data section and header shapes by associating based on common variable name
+        for var in header.header.root.vars:
+            if var.name == varName:
+                var_dims = [shape.name for shape in var.shapes]
+        slice_dict = dict(zip(var_dims, self.InterpretSection(data.section)))
 
         # decode data
         self.DecodeResponse(header.header.root, varName, data.data, slice_dict)
 
-        # return file
+        # return file based on user input
         if as_netcdf:
             return self.ds.to_netcdf()
         else:
@@ -323,11 +328,9 @@ class netCDF_Decode(gRPC_netCDF):
         # assign dimensions, update attributes
         # coordinates are stored as variables so we process them when iterating through vars
         self.ds.attrs.update({attr.name:self.DecodeData(attr.data) for attr in group.atts})  # this returns list of data
-
         for var in group.vars:
-
             # first handle coordinates
-            if var.name in [dim.name for dim in group.dims]:
+            if var.name in slice_dict:
                 coord_data = self.DecodeData(var.data)
                 coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
                 if var.name in self.ds.dims:
@@ -356,7 +359,10 @@ def bone_func():
     loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
     spec = "sst_anomaly(0,100:102,121:125)"
     loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test.nc'
-    spec = "Rad(1,1)"
+    # BONE sign off: star_id returns the wrong coordinates
+    spec = "algorithm_product_version_container"
+    spec = "Rad(10,10:100)"
+    spec = "star_id"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
