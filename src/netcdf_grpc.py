@@ -1,4 +1,4 @@
-from proto_gen import gcdm_netcdf_pb2 as grpc_msg
+from src.protogen import gcdm_netcdf_pb2 as grpc_msg
 import numpy as np
 
 class gRPC_netCDF():

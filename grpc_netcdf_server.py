@@ -1,7 +1,8 @@
 import grpc
-import protogen.gcdm_netcdf_pb2 as grpc_msg
-import protogen.gcdm_server_pb2_grpc as grpc_server
-from netcdf_encode import netCDF_Encode
+import os
+from src.netcdf_encode import netCDF_Encode
+from src.protogen import gcdm_netcdf_pb2 as grpc_msg
+from src.protogen import gcdm_server_pb2_grpc as grpc_server
 from concurrent import futures
 
 class Responder(grpc_server.GcdmServicer):
@@ -15,7 +16,11 @@ class Responder(grpc_server.GcdmServicer):
 
     def GetNetcdfData(self, request, context):
         print("Data Requested")
-        return self.encoder.GenerateDataFromRequest(request)
+
+        # stream the data response
+        data_response = [self.encoder.GenerateDataFromRequest(request)]
+        for data in data_response:
+            yield(data)
 
 
 def server():

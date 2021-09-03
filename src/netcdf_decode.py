@@ -1,6 +1,6 @@
 import numpy as np
 import xarray as xr
-from netcdf_grpc import gRPC_netCDF
+from src.netcdf_grpc import gRPC_netCDF
 
 class netCDF_Decode(gRPC_netCDF):
 

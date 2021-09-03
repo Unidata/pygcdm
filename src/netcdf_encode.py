@@ -1,5 +1,5 @@
-from protogen import gcdm_netcdf_pb2 as grpc_msg
-from netcdf_grpc import gRPC_netCDF
+from src.protogen import gcdm_netcdf_pb2 as grpc_msg
+from src.netcdf_grpc import gRPC_netCDF
 import netCDF4 as nc4
 import numpy as np
 import xarray as xr
@@ -191,25 +191,3 @@ class netCDF_Encode(gRPC_netCDF):
         else:
             raise NotImplementedError("Dimension encoding is only supported for groups and variables")
 
-def bone_func():
-    encoder = netCDF_Encode()
-   # loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-   # spec = "sst_anomaly(0,100:102,121:125)"
-    loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test.nc'
-    #spec = "algorithm_product_version_container"
-    #spec = "star_id"
-    spec = "Rad(10,10:100)"
-    spec = "Rad"
-    header_request = grpc_msg.HeaderRequest(location=loc)
-    header_response = encoder.GenerateHeaderFromRequest(header_request)
-    data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
-    data_response = encoder.GenerateDataFromRequest(data_request)
-
-    decoder = netCDF_Decode()
-    nf = decoder.GenerateFileFromResponse(header_response, data_response)
-    print(nf)
-    return nf, header_response, data_response
-
-if __name__ == '__main__':
-    bone_func()
-    print("ran no errors")
