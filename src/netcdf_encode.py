@@ -1,101 +1,16 @@
-import gen.gcdm_netcdf_pb2 as grpc_msg
+from protogen import gcdm_netcdf_pb2 as grpc_msg
+from netcdf_grpc import gRPC_netCDF
 import netCDF4 as nc4
 import numpy as np
 import xarray as xr
 import re
 import math
 
-class gRPC_netCDF():
-    def __init__(self):
-        self.typeDict = self.GenTypeDict()
-        self.messageDict = self.GenMessageTypeDict()
-    
-    def GenTypeDict(self):
-        # BONE work in progress
-        return {
-                # native python types
-                int:grpc_msg.DATA_TYPE_INT,
-                str:grpc_msg.DATA_TYPE_STRING,
-                float:grpc_msg.DATA_TYPE_FLOAT,
-
-                np.int8:grpc_msg.DATA_TYPE_INT,
-                np.int16:grpc_msg.DATA_TYPE_INT,
-                np.int32:grpc_msg.DATA_TYPE_INT,
-                np.int64:grpc_msg.DATA_TYPE_LONG,
-
-                np.float16:grpc_msg.DATA_TYPE_FLOAT,
-                np.float32:grpc_msg.DATA_TYPE_FLOAT,
-                np.float64:grpc_msg.DATA_TYPE_FLOAT,
-
-                np.byte:grpc_msg.DATA_TYPE_INT,  # np.byte defaults to np.int8 which causes trouble
-                np.ubyte:grpc_msg.DATA_TYPE_UBYTE,
-                np.short:grpc_msg.DATA_TYPE_SHORT,
-                np.ushort:grpc_msg.DATA_TYPE_USHORT,
-                np.double:grpc_msg.DATA_TYPE_DOUBLE,
-
-                np.uint8:grpc_msg.DATA_TYPE_UBYTE,
-                np.uint16:grpc_msg.DATA_TYPE_USHORT,
-                np.uint32:grpc_msg.DATA_TYPE_UINT,
-                np.uint64:grpc_msg.DATA_TYPE_ULONG,
-                np.uint:grpc_msg.DATA_TYPE_ULONG,
-                }
-
-    def GenMessageTypeDict(self):
-        return  {
-                grpc_msg.DATA_TYPE_BYTE:"bdata",
-                grpc_msg.DATA_TYPE_SHORT:"idata",
-                grpc_msg.DATA_TYPE_INT:"idata",
-                grpc_msg.DATA_TYPE_USHORT:"uidata",
-                grpc_msg.DATA_TYPE_UINT:"uidata",
-                grpc_msg.DATA_TYPE_LONG:"ldata",
-                grpc_msg.DATA_TYPE_ULONG:"uldata",
-                grpc_msg.DATA_TYPE_FLOAT:"fdata",
-                grpc_msg.DATA_TYPE_DOUBLE:"ddata",
-                grpc_msg.DATA_TYPE_STRING:"sdata",
-                }
-    
-    def GetGRPCType(self, data_type):
-        try:
-            return self.typeDict[data_type]
-        except:
-            raise NotImplementedError("Type not supported")
-
-    def GetMessageDataType(self, data_type):
-        # find data type to pack message, error if data_type not found in dict
-        try:
-            return self.messageDict[data_type]
-        except:
-            raise NotImplementedError("Incorrect message data type")
-
-    def GenerateError(self):
-        # BONE idea:
-        # 1. check for errors with java implementation
-        # 2. have errors reflect what you punted on
-        message = "Dummy error" # bone
-        code = 0
-        return grpc_msg.Error(message=message, code=code)
-
-    def InterpretSection(self, section):
-        slices = []
-        for rng in section.ranges:
-            if rng.size == 1:
-                slices.append(slice(rng.start, rng.start+1))
-            else:
-                # empty fields default to zero; numpy can't do zero step indexing
-                if rng.stride == 0:
-                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, 1))
-                else:
-                    slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
-        return slices
-
-
 
 class netCDF_Encode(gRPC_netCDF):
 
     def __init__(self):
         super().__init__()
-
-    ## HIGH LEVEL REQUEST STUFF
 
     def GenerateHeaderFromRequest(self, request):
         nc = nc4.Dataset(request.location)
@@ -115,20 +30,17 @@ class netCDF_Encode(gRPC_netCDF):
         nc.set_auto_maskandscale(False)
         error = self.GenerateError()  # BONE this is dummy, need to figure out error handling
         version = 1 # BONE, this is dummy
-        location = request.location
-        variable_spec = request.variable_spec
-        varName, section = self.InterpretSpec(request.variable_spec, nc)
-        var_full_name = nc.variables[varName].group().name + nc.variables[varName].name
+        var_name, section = self.InterpretSpec(request.variable_spec, nc)
         slices = self.InterpretSection(section)
-        variable = nc.variables[varName][(*slices,)]
+        variable = nc.variables[var_name][(*slices,)]
         data_type = self.GetGRPCType(variable.dtype.type)
         data = self.EncodeData(variable, data_type)
 
         return grpc_msg.DataResponse(error=error,
                 version=version,
-                location=location,
-                variable_spec=variable_spec,
-                var_full_name=var_full_name,
+                location=request.location,
+                variable_spec=request.variable_spec,
+                var_full_name=nc.variables[var_name].group().name + nc.variables[var_name].name,
                 section=section,
                 data=data)
 
@@ -172,10 +84,23 @@ class netCDF_Encode(gRPC_netCDF):
 
         return var_name, section
 
+    def GetAttributeType(self, attribute):
+        if np.isscalar(attribute):
+            if issubclass(type(attribute), np.number):
+                data_type = attribute.dtype.type
+            else:
+                data_type = type(attribute)
+        else:
+            if isinstance(attribute, np.ndarray):
+                data_type = attribute.dtype.type
+            else:
+                data_type = type(attribute[0])
+        
+        return self.GetGRPCType(data_type)
 
     ## GROUP STUFF
     def EncodeGroup(self, group):
-        name = group.name
+        # TODO: add support for structures, enum_types. Verify subgroup encoding works
         dims = self.EncodeDimension(group)
         dim_names = [dim.name for dim in dims]
         variables = [
@@ -183,33 +108,26 @@ class netCDF_Encode(gRPC_netCDF):
                 else self.EncodeVariable(variable, coords_only=True)
                 for variable in group.variables.values()
                 ]
-        # BONE need to add support for structures
         atts = self.EncodeAttributes(group)
         groups = [self.EncodeGroup(subgroup) for subgroup in group.groups.values()]
-        # BONE need to add support for enum_types
-        return grpc_msg.Group(name=name,
+        return grpc_msg.Group(name=group.name,
                 dims=dims,
                 vars=variables,
                 atts=atts,
                 groups=groups
                 )
 
-
-    ## VARIABLE STUFF
-
     def EncodeVariable(self, variable, coords_only=False):
-        name = variable.name
         shapes = self.EncodeDimension(variable)
         atts = self.EncodeAttributes(variable)
         data_type = self.GetGRPCType(variable.dtype.type)
         data = self.EncodeData(variable, data_type) if not coords_only else grpc_msg.Data()
-        return grpc_msg.Variable(name=name,
+        return grpc_msg.Variable(name=variable.name,
                 data_type=data_type,
                 shapes=shapes,
                 atts=atts,
                 data=data)
 
-    ## ATTRIBUTE STUFF
     def EncodeAttributes(self, obj):
         attributes = []
         for attribute_name in obj.ncattrs():
@@ -223,27 +141,14 @@ class netCDF_Encode(gRPC_netCDF):
                     length=0
                 else:
                     length = len(attribute)
-            attributes.append(grpc_msg.Attribute(name=attribute_name,
+            attributes.append(grpc_msg.Attribute(
+                name=attribute_name,
                 data_type=data_type,
                 length=length,
-                data=data))
+                data=data,
+                ))
         return attributes
 
-    def GetAttributeType(self, attribute):
-        if np.isscalar(attribute):
-            if issubclass(type(attribute), np.number):
-                data_type = attribute.dtype.type
-            else:
-                data_type = type(attribute)
-        else:
-            if isinstance(attribute, np.ndarray):
-                data_type = attribute.dtype.type
-            else:
-                data_type = type(attribute[0])  # BONE this seems fragile
-        
-        return self.GetGRPCType(data_type)
-
-    ## DATA STUFF
     def EncodeData(self, obj, data_type):
         # strings are inherently iterable so we leave them as is
         # else we convert to numpy array since this is easier to deal with than both lists and arrays
@@ -265,104 +170,36 @@ class netCDF_Encode(gRPC_netCDF):
         getattr(dmsg, dtype).extend(data) # get attr returns and iter object which we can then extend code onto
         return dmsg
 
-    ## DIMENSIONS STUFF
     def EncodeDimension(self, obj):
-        # first determine if dimension object is a group or a variable
         # groups store dimensions in dict, variables store dimensions in tuple
+        # handle group condition:
         if isinstance(obj.dimensions, dict):
-            return self.EncodeDimensionGroup(obj)
+            group_dims = []
+            for dimension in obj.dimensions.values():
+                group_dims.append(grpc_msg.Dimension(
+                    name=dimension.name,
+                    length=dimension.size,
+                    is_unlimited=dimension.isunlimited(),
+                    ))
+            return group_dims
+
+        # handle variable condition
         elif isinstance(obj.dimensions, tuple):
-            return self.EncodeDimensionVariable(obj)
+            return [grpc_msg.Dimension(name=name, length=length) for name, length in zip(obj.dimensions, obj.shape)] 
+
+        # handle error condition 
         else:
             raise NotImplementedError("Dimension encoding is only supported for groups and variables")
 
-    def EncodeDimensionGroup(self, group):
-        dimension_list = []
-        for dimension in group.dimensions.values():
-            dimension_list.append(grpc_msg.Dimension(
-                name=dimension.name,
-                length=dimension.size,
-                is_unlimited=dimension.isunlimited(),
-                ))
-        return dimension_list
-
-    def EncodeDimensionVariable(self, variable):
-        return [grpc_msg.Dimension(name=name, length=length) for name, length in zip(variable.dimensions, variable.shape)]
-    
-class netCDF_Decode(gRPC_netCDF):
-
-    def __init__(self):
-        super().__init__()
-        self.ds = xr.Dataset()
-
-    # high level decode stuff
-    def GenerateFileFromResponse(self, header, data, as_netcdf=False):
-
-        # unpack header
-        headerError = header.error  # bone add in error handling
-        headerVersion = header.version
-        
-        # unpack data
-        dataError = data.error  # bone add in error handling
-        dataVersion = data.version
-        dataLocation = data.location
-        varName = data.variable_spec.split("(")[0]
-        dataVariableFullName = data.var_full_name.strip("/")  # BONE how to handle this
-
-        # create a list of slices from data section and header shapes by associating based on common variable name
-        for var in header.header.root.vars:
-            if var.name == varName:
-                var_dims = [shape.name for shape in var.shapes]
-        slice_dict = dict(zip(var_dims, self.InterpretSection(data.section)))
-
-        # decode data
-        self.DecodeResponse(header.header.root, varName, data.data, slice_dict)
-
-        # return file based on user input
-        if as_netcdf:
-            return self.ds.to_netcdf()
-        else:
-            return self.ds
-
-    def DecodeResponse(self, group, varName, data, slice_dict):
-        # assign dimensions, update attributes
-        # coordinates are stored as variables so we process them when iterating through vars
-        self.ds.attrs.update({attr.name:self.DecodeData(attr.data) for attr in group.atts})  # this returns list of data
-        for var in group.vars:
-            # first handle coordinates
-            if var.name in slice_dict:
-                coord_data = self.DecodeData(var.data)
-                coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
-                if var.name in self.ds.dims:
-                    self.ds = self.ds.assign_coords({var.name:coord_data[slice_dict[var.name]]})
-                else:
-                    self.ds = self.ds.expand_dims(dim={var.name:coord_data[slice_dict[var.name]]})
-
-            if var.name == varName:
-                self.ds[var.name] = xr.DataArray(
-                        dims = [dim.name for dim in var.shapes],
-                        attrs = {attr.name:self.DecodeData(attr.data) for attr in var.atts},
-                        data = np.array(self.DecodeData(data)).reshape(data.shapes),  # BONE, data comes from the data, var.data comes from header. This is confusing and variables should probably be reworded
-                        )
-
-    def DecodeData(self, data):
-        dtype = self.GetMessageDataType(data.data_type)
-        if dtype == "sdata":
-            # want string data as contiguous string not list
-            return "".join(getattr(data, dtype))  
-        else:
-            # since field is repeated, will always return a list even if one element. This returns a scalar where appropriate
-            return getattr(data, dtype) if len(getattr(data, dtype)) > 1 else getattr(data, dtype)[0]
-
 def bone_func():
     encoder = netCDF_Encode()
-    loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
-    spec = "sst_anomaly(0,100:102,121:125)"
+   # loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test3.nc'
+   # spec = "sst_anomaly(0,100:102,121:125)"
     loc = '/users/rmcmahon/dev/netcdf-grpc/src/data/test.nc'
-    # BONE sign off: star_id returns the wrong coordinates
-    spec = "algorithm_product_version_container"
+    #spec = "algorithm_product_version_container"
+    #spec = "star_id"
     spec = "Rad(10,10:100)"
-    spec = "star_id"
+    spec = "Rad"
     header_request = grpc_msg.HeaderRequest(location=loc)
     header_response = encoder.GenerateHeaderFromRequest(header_request)
     data_request = grpc_msg.DataRequest(location=loc, variable_spec=spec)
