@@ -2,7 +2,17 @@
 
 ## Usage
 
-#### Encode/Decode API
+### Create Environment
+To activate the conda environment we'll use the `environment.yml` file. If you don't have `conda` installed on your machine, install if following [these instructions](https://conda.io/projects/conda/en/latest/user-guide/install/index.html). Start by cloning the repo and creating/activating the conda environment:
+```
+git clone https://github.com/rmcsqrd/netcdf-grpc
+cd netcdf-grpc
+conda env create --name [environment name] -f environment.yml
+conda activate [environment name]
+```
+Note that you can omit the `--name` flag and the environment will default to `netcdf-grpc-env`. 
+
+### Encode/Decode API
 This demonstrates how to encode/decode gRPC messages within a python shell:
 ```
 # import/instantiate encoder object
@@ -25,7 +35,7 @@ decoder = netCDF_Decode()
 ds = decoder.GenerateFileFromResponse(header_response, data_response)
 ```
 
-#### Transfer Files using gRPC
+### Transfer Files using gRPC
 This demonstrates how to implement the python encode/decode API and transmit netCDF files via gRPC. Start by opening up two separate tabs in your terminal. Make sure that whatever python environment you installed the requirements into is active in both. Make sure that you are in base folder of this repo. 
 
 In the first tab, start the gRPC server by running the following command:
