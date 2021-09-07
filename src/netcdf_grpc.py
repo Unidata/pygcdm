@@ -1,15 +1,15 @@
+"""Parent class with type conversions and  utilites for encode/decode classes."""
+
 from src.protogen import gcdm_netcdf_pb2 as grpc_msg
 import numpy as np
 
-class gRPC_netCDF():
-    def __init__(self):
-        self.type_dict = self.GenTypeDict()
-        self.message_dict = self.GenMessageTypeDict()
 
-    def GenTypeDict(self):
-        # BONE work in progress
-        return {
-                # native python types
+class gRPC_netCDF():
+    """Parent netCDF gRPC class with utility items."""
+
+    def __init__(self):
+        """Initialization function that defines dictionaries for gRPC/python type conversions."""
+        self.type_dict = {
                 int: grpc_msg.DATA_TYPE_INT,
                 str: grpc_msg.DATA_TYPE_STRING,
                 float: grpc_msg.DATA_TYPE_FLOAT,
@@ -36,42 +36,52 @@ class gRPC_netCDF():
                 np.uint: grpc_msg.DATA_TYPE_ULONG,
                 }
 
-    def GenMessageTypeDict(self):
-        return  {
-                grpc_msg.DATA_TYPE_BYTE:"bdata",
-                grpc_msg.DATA_TYPE_SHORT:"idata",
-                grpc_msg.DATA_TYPE_INT:"idata",
-                grpc_msg.DATA_TYPE_USHORT:"uidata",
-                grpc_msg.DATA_TYPE_UINT:"uidata",
-                grpc_msg.DATA_TYPE_LONG:"ldata",
-                grpc_msg.DATA_TYPE_ULONG:"uldata",
-                grpc_msg.DATA_TYPE_FLOAT:"fdata",
-                grpc_msg.DATA_TYPE_DOUBLE:"ddata",
-                grpc_msg.DATA_TYPE_STRING:"sdata",
+        self.message_dict = {
+                grpc_msg.DATA_TYPE_BYTE: 'bdata',
+                grpc_msg.DATA_TYPE_SHORT: 'idata',
+                grpc_msg.DATA_TYPE_INT: 'idata',
+                grpc_msg.DATA_TYPE_USHORT: 'uidata',
+                grpc_msg.DATA_TYPE_UINT: 'uidata',
+                grpc_msg.DATA_TYPE_LONG: 'ldata',
+                grpc_msg.DATA_TYPE_ULONG: 'uldata',
+                grpc_msg.DATA_TYPE_FLOAT: 'fdata',
+                grpc_msg.DATA_TYPE_DOUBLE: 'ddata',
+                grpc_msg.DATA_TYPE_STRING: 'sdata',
                 }
-    
-    def GetGRPCType(self, data_type):
+
+    def get_grpc_type(self, data_type):
+        """Returns gRPC data type from python data type."""
         try:
             return self.type_dict[data_type]
-        except:
-            raise NotImplementedError("Type not supported")
+        except KeyError:
+            raise NotImplementedError('Type not supported')
 
-    def GetMessageDataType(self, data_type):
-        # find data type to pack message, error if data_type not found in dict
+    def get_message_data_type(self, data_type):
+        """Returns gRPC `Data` message type field to write into when encoding data"""
         try:
             return self.message_dict[data_type]
-        except:
-            raise NotImplementedError("Incorrect message data type")
+        except KeyError:
+            raise NotImplementedError('Incorrect message data type')
 
-    def GenerateError(self):
+    def get_version(self):
+        """Return version type"""
+        # TODO: not implemented
+        version = 0
+        return version
+
+    def _generate_error(self, error_type=None):
         # BONE idea:
         # 1. check for errors with java implementation
         # 2. have errors reflect what you punted on
-        message = "Dummy error" # bone
-        code = 0
+        code = 0  # TODO: not implemented
+        message = ""
+        if error_type == None:
+            message = "no error"
+        
         return grpc_msg.Error(message=message, code=code)
 
-    def InterpretSection(self, section):
+    def interpret_section(self, section):
+        """Return list of python `slice` objects based on gRPC sections."""
         slices = []
         for rng in section.ranges:
             if rng.size == 1:
@@ -83,5 +93,3 @@ class gRPC_netCDF():
                 else:
                     slices.append(slice(rng.start, rng.start+rng.stride*rng.size, rng.stride))
         return slices
-
-

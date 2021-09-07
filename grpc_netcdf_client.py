@@ -19,7 +19,7 @@ def run():
 
 def decode_response(header, data):
     decoder = netCDF_Decode()
-    return decoder.GenerateFileFromResponse(header, data)
+    return decoder.generate_file_from_response(header, data)
 
 
 if __name__ == '__main__':

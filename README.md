@@ -16,23 +16,24 @@ Note that you can omit the `--name` flag and the environment will default to `ne
 This demonstrates how to encode/decode gRPC messages within a python shell:
 ```
 # import/instantiate encoder object
-from src.netcdf_encode import netCDF_Encoder
+from src.netcdf_encode import netCDF_Encode
 encoder = netCDF_Encode()
 
 # import and define header request
-import src.proto_gen.gcdm_netcdf_pb2 as grpc_msg
+import src.protogen.gcdm_netcdf_pb2 as grpc_msg
 file_loc = "test/data/test.nc"
 header_request = grpc_msg.HeaderRequest(location=file_loc)
-header_response = encoder.GenerateHeaderFromRequest(header_request)
+header_response = encoder.generate_header_from_request(header_request)
 
 # define data request
+var_spec = "analysed_sst"
 data_request = grpc_msg.DataRequest(location=file_loc, variable_spec=var_spec)
-data_response = encoder.GenerateDataFromRequest(data_request)
+data_response = encoder.generate_data_from_request(data_request)
 
 # decode header/data into xarray object
 from src.netcdf_decode import netCDF_Decode
 decoder = netCDF_Decode()
-ds = decoder.GenerateFileFromResponse(header_response, data_response)
+ds = decoder.generate_file_from_response(header_response, data_response)
 ```
 
 ### Transfer Files using gRPC
