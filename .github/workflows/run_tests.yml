@@ -5,7 +5,7 @@ on: [push]
 jobs:
   RunTests:
     name: ${{ matrix.os }} ${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }}-latests
+    runs-on: ${{ matrix.os }}-latest
     strategy:
       max-parallel: 5
       fail-fast: false
