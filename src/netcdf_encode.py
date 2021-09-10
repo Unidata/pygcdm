@@ -6,6 +6,7 @@ from src.netcdf_grpc import gRPC_netCDF
 import numpy as np
 import re
 import math
+import os
 
 
 class netCDF_Encode(gRPC_netCDF):
@@ -22,24 +23,38 @@ class netCDF_Encode(gRPC_netCDF):
 
     def generate_header_from_request(self, request):
         """Method to take `HeaderRequest` message types and return a `HeaderResponse` message."""
-        nc = nc4.Dataset(request.location)
-        nc.set_auto_maskandscale(False)
-        error = self._generate_error()  # BONE need to figure out error handling
-        # BONE need to include title, id in header
-        header = grpc_msg.Header(location=request.location,
-                                 root=self._encode_group(nc)
-                                 )
-        return grpc_msg.HeaderResponse(error=error,
-                                       version=self.get_version(),
-                                       header=header
-                                       )
+        header_response_args = {}
+        header_args = {}
+        try:
+            nc = nc4.Dataset(request.location)
+            nc.set_auto_maskandscale(False)
+            header_response_args['error'] = self._generate_error()
+            header_args['title'] = nc.getncattr('title') if 'title' in nc.ncattrs() else None
+            header_args['id'] = nc.getncattr('id') if 'id' in nc.ncattrs() else None
+            header_response_args['header'] = grpc_msg.Header(location=request.location,
+                                     root=self._encode_group(nc),
+                                     **header_args
+                                     )
+        # handle request errors
+        except OSError:
+            if not os.path.isfile(request.location):
+                header_response_args['error'] = self._generate_error('bad_path')
+            else:
+                header_response_args['error'] = self._generate_error('bad_file')
+
+        finally:
+            return grpc_msg.HeaderResponse(**header_response_args)
+
 
     def generate_data_from_request(self, request):
         """Method to take `DataRequest` message types and return a `DataResponse` message."""
         nc = nc4.Dataset(request.location)
         nc.set_auto_maskandscale(False)
         error = self._generate_error()  # need to figure out error handling
-        var_name, section = self._interpret_spec(request.variable_spec, nc)
+        var_name, var_spec_slices = self._interpret_var_spec(request.variable_spec)
+        # BONE error: validate var_name here
+        section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
+        # BONE error: validate section here
         slices = self.interpret_section(section)
         variable = nc.variables[var_name][(*slices,)]
         data_type = self.get_grpc_type(variable.dtype.type)
@@ -54,28 +69,36 @@ class netCDF_Encode(gRPC_netCDF):
                                      data=data
                                      )
 
-    def _interpret_spec(self, var_spec, nc):
+    def _interpret_var_spec(self, var_spec):
+        var_name, *var_spec_slices = re.split(r'\(|\)|,', var_spec)
+        var_spec_slices = var_spec_slices[:-1] if len(var_spec_slices) > 0 else None
+        print(var_spec_slices)
+        return var_name, var_spec_slices
+
+    def _interpret_slices(self, var_spec_slices, var_dims):
         # using definition from:
         # https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html
 
-        if '(' in var_spec:
-            var_name, dims, _ = re.split('\(|\)', var_spec)
+        print(var_dims)
+        if var_spec_slices == None:
+            section = grpc_msg.Section(ranges=[grpc_msg.Range(size=dim.size, stride=1) for dim in var_dims])
+        else:
             ranges = []
-            for dim_idx, dim in enumerate(dims.split(',')):
+            for slice_idx, var_slice in enumerate(var_spec_slices):
                 # handle : condition
-                if dim == ':':
-                    ranges.append(grpc_msg.Range(size=nc.variables[var_name].get_dims()[dim_idx].size, stride=1))
+                if var_slice.strip() == ':':
+                    ranges.append(grpc_msg.Range(size=var_dims[slice_idx].size, stride=1))
                 # handle  single index condition
-                elif str.isdigit(dim):
-                    if int(dim) == 0:
+                elif str.isdigit(var_slice):
+                    if int(var_slice) == 0:
                         ranges.append(grpc_msg.Range(size=1, stride=1))
                     else:
-                        ranges.append(grpc_msg.Range(start=int(dim), size=1, stride=1))
+                        ranges.append(grpc_msg.Range(start=int(var_slice), size=1, stride=1))
                 # else, unpack the range
                 else:
                     range_attr = ['start', 'size', 'stride']
                     rng = grpc_msg.Range()
-                    start, end, *stride = [int(i) for i in dim.split(':')]
+                    start, end, *stride = [int(i) for i in var_slice.split(':')]
                     if len(stride):  # max one item in list
                         stride = stride.pop()
                     else:
@@ -84,14 +107,8 @@ class netCDF_Encode(gRPC_netCDF):
                     for attr, val in zip(range_attr, range_vals):
                         setattr(rng, attr, int(val))
                     ranges.append(rng)
-
-            # bone, this is a good opportunity for error code of invalid dimensions
             section = grpc_msg.Section(ranges=ranges)
-        else:
-            var_name = var_spec
-            section = grpc_msg.Section(ranges=[grpc_msg.Range(size=dim.size, stride=1) for dim in nc.variables[var_name].get_dims()])
-
-        return var_name, section
+        return section
 
     def _get_attribute_type(self, attribute):
         if np.isscalar(attribute):

@@ -70,15 +70,14 @@ class gRPC_netCDF():
         return version
 
     def _generate_error(self, error_type=None):
-        # BONE idea:
-        # 1. check for errors with java implementation
-        # 2. have errors reflect what you punted on
         code = 0  # TODO: not implemented
-        message = ""
-        if error_type == None:
-            message = "no error"
+        error_dict = {
+                     None: 'no error',
+                     'bad_path': 'Specified file path does not exist',
+                     'bad_file': 'Specified file is not a netCDF file',
+                     }
         
-        return grpc_msg.Error(message=message, code=code)
+        return grpc_msg.Error(message=error_dict[error_type], code=code)
 
     def interpret_section(self, section):
         """Return list of python `slice` objects based on gRPC sections."""
