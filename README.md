@@ -1,4 +1,5 @@
 # netcdf-grpc
+[![Coverage Status](https://coveralls.io/repos/github/rmcsqrd/netcdf-grpc/badge.svg?branch=coveralls)](https://coveralls.io/github/rmcsqrd/netcdf-grpc?branch=coveralls)
 
 ## Usage
 
