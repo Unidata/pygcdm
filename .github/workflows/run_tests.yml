@@ -27,7 +27,7 @@ jobs:
       with:
           miniforge-version: latest
           environment-file: ci/environment.yml
-          activate-environment: anaconda-client-env
+          activate-environment: test-env
           python-version: ${{ matrix.python-version }}
           channels: anaconda, conda-forge, defaults
       
