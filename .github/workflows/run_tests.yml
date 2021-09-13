@@ -11,7 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: [3.9]
-        os: [macos]
+        os: [ubuntu]
 
     steps:
     - name: Checkout source
@@ -20,16 +20,14 @@ jobs:
         fetch-depth: 100
         
     - name: Set up Python ${{ matrix.python-version }}
-      uses: conda-incubator/setup-miniconda@v2.1.1
+      uses: actions/setup-python@v2
       with:
-        miniforge-version: latest
         python-version: ${{ matrix.python-version }}
-        channel-priority: strict
-        channels: conda-forge/label/testing,conda-forge
-        show-channel-urls: true
-     
+
     - name: Install dependencies
-      run: conda install --quiet --yes --file ci/requirements.txt
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        $CONDA/bin/conda env update --file environment.yml --name base
 
       
     - name: Run tests
