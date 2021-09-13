@@ -35,3 +35,8 @@ jobs:
       run: |
         pytest test/unit_tests.py
         pytest test/functional_tests.py
+        
+    - name: Coveralls
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
