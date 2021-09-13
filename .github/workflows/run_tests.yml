@@ -33,10 +33,10 @@ jobs:
       
     - name: Run tests
       run: |
-        pytest test/unit_tests.py
-        pytest test/functional_tests.py
+        pytest --cov=. test/* > coveralls_lcov.info
         
     - name: Coveralls
       uses: coverallsapp/github-action@master
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: ./coveralls_lcov.info
