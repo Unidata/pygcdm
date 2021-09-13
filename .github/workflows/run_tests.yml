@@ -30,7 +30,8 @@ jobs:
         show-channel-urls: true
      
     - name: Install dependencies
-      run: mamba install --quiet --yest --file ci/requirements.txt
+      run: mamba install --quiet --yes --file ci/requirements.txt
+
       
     - name: Run tests
       run: |
