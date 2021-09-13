@@ -23,14 +23,13 @@ jobs:
       uses: conda-incubator/setup-miniconda@v2.1.1
       with:
         miniforge-version: latest
-        miniforge-variant: mambaforge
         python-version: ${{ matrix.python-version }}
         channel-priority: strict
         channels: conda-forge/label/testing,conda-forge
         show-channel-urls: true
      
     - name: Install dependencies
-      run: mamba install --quiet --yes --file ci/requirements.txt
+      run: conda install --quiet --yes --file ci/requirements.txt
 
       
     - name: Run tests
