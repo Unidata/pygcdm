@@ -1,8 +1,8 @@
 import grpc
 import os
-from src.netcdf_encode import netCDF_Encode
-from src.protogen import gcdm_netcdf_pb2 as grpc_msg
-from src.protogen import gcdm_server_pb2_grpc as grpc_server
+from pygcdm.netcdf_encode import netCDF_Encode
+from pygcdm.protogen import gcdm_netcdf_pb2 as grpc_msg
+from pygcdm.protogen import gcdm_server_pb2_grpc as grpc_server
 from concurrent import futures
 
 class Responder(grpc_server.GcdmServicer):

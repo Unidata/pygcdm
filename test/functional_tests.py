@@ -1,7 +1,7 @@
 import pytest
-from src.netcdf_encode import netCDF_Encode
-import src.protogen.gcdm_netcdf_pb2 as grpc_msg
-from src.netcdf_decode import netCDF_Decode
+from pygcdm.netcdf_encode import netCDF_Encode
+import pygcdm.protogen.gcdm_netcdf_pb2 as grpc_msg
+from pygcdm.netcdf_decode import netCDF_Decode
 import xarray as xr
 import netCDF4 as nc4
 

@@ -62,7 +62,7 @@ In order to generate the grpc python source code from the `.proto` files in `pro
 
 To compile our code, and put the resulting functions into `src/protogen/`, we can use the following commands (from the root directory where this README is located):
 ```
-$ python -m grpc_tools.protoc -I protos/ --python_out=. --grpc_python_out=. protos/src/protogen/*.proto
+$ python -m grpc_tools.protoc -I protos/ --python_out=. --grpc_python_out=. protos/pygcdm/protogen/*.proto
 ```
 
 More information on the `protoc` compiler can be found by loading the module in python and using the `help` command:

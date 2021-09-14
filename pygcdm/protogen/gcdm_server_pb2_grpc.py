@@ -2,8 +2,8 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from src.protogen import gcdm_grid_pb2 as src_dot_protogen_dot_gcdm__grid__pb2
-from src.protogen import gcdm_netcdf_pb2 as src_dot_protogen_dot_gcdm__netcdf__pb2
+from pygcdm.protogen import gcdm_grid_pb2 as pygcdm_dot_protogen_dot_gcdm__grid__pb2
+from pygcdm.protogen import gcdm_netcdf_pb2 as pygcdm_dot_protogen_dot_gcdm__netcdf__pb2
 
 
 class GcdmStub(object):
@@ -17,23 +17,23 @@ class GcdmStub(object):
         """
         self.GetNetcdfHeader = channel.unary_unary(
                 '/ucar.gcdm.Gcdm/GetNetcdfHeader',
-                request_serializer=src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.SerializeToString,
-                response_deserializer=src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.FromString,
+                request_serializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.SerializeToString,
+                response_deserializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.FromString,
                 )
         self.GetNetcdfData = channel.unary_stream(
                 '/ucar.gcdm.Gcdm/GetNetcdfData',
-                request_serializer=src_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.SerializeToString,
-                response_deserializer=src_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.FromString,
+                request_serializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.SerializeToString,
+                response_deserializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.FromString,
                 )
         self.GetGridDataset = channel.unary_unary(
                 '/ucar.gcdm.Gcdm/GetGridDataset',
-                request_serializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.SerializeToString,
-                response_deserializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.FromString,
+                request_serializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.SerializeToString,
+                response_deserializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.FromString,
                 )
         self.GetGridData = channel.unary_stream(
                 '/ucar.gcdm.Gcdm/GetGridData',
-                request_serializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.SerializeToString,
-                response_deserializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.FromString,
+                request_serializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.SerializeToString,
+                response_deserializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.FromString,
                 )
 
 
@@ -69,23 +69,23 @@ def add_GcdmServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'GetNetcdfHeader': grpc.unary_unary_rpc_method_handler(
                     servicer.GetNetcdfHeader,
-                    request_deserializer=src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.FromString,
-                    response_serializer=src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.SerializeToString,
+                    request_deserializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.FromString,
+                    response_serializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.SerializeToString,
             ),
             'GetNetcdfData': grpc.unary_stream_rpc_method_handler(
                     servicer.GetNetcdfData,
-                    request_deserializer=src_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.FromString,
-                    response_serializer=src_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.SerializeToString,
+                    request_deserializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.FromString,
+                    response_serializer=pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.SerializeToString,
             ),
             'GetGridDataset': grpc.unary_unary_rpc_method_handler(
                     servicer.GetGridDataset,
-                    request_deserializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.FromString,
-                    response_serializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.SerializeToString,
+                    request_deserializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.FromString,
+                    response_serializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.SerializeToString,
             ),
             'GetGridData': grpc.unary_stream_rpc_method_handler(
                     servicer.GetGridData,
-                    request_deserializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.FromString,
-                    response_serializer=src_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.SerializeToString,
+                    request_deserializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.FromString,
+                    response_serializer=pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -109,8 +109,8 @@ class Gcdm(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/ucar.gcdm.Gcdm/GetNetcdfHeader',
-            src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.SerializeToString,
-            src_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.FromString,
+            pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderRequest.SerializeToString,
+            pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.HeaderResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -126,8 +126,8 @@ class Gcdm(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_stream(request, target, '/ucar.gcdm.Gcdm/GetNetcdfData',
-            src_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.SerializeToString,
-            src_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.FromString,
+            pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataRequest.SerializeToString,
+            pygcdm_dot_protogen_dot_gcdm__netcdf__pb2.DataResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -143,8 +143,8 @@ class Gcdm(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/ucar.gcdm.Gcdm/GetGridDataset',
-            src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.SerializeToString,
-            src_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.FromString,
+            pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetRequest.SerializeToString,
+            pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDatasetResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -160,7 +160,7 @@ class Gcdm(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_stream(request, target, '/ucar.gcdm.Gcdm/GetGridData',
-            src_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.SerializeToString,
-            src_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.FromString,
+            pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataRequest.SerializeToString,
+            pygcdm_dot_protogen_dot_gcdm__grid__pb2.GridDataResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
