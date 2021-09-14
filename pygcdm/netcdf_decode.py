@@ -22,10 +22,8 @@ class netCDF_Decode(gRPC_netCDF):
 
     # high level decode stuff
     def generate_file_from_response(self, header, data, as_netcdf=False):
-        """Interpret response messages and process responses into xarray
-        dataset object.
+        """Interpret response messages and process responses into xarray dataset object.
         """
-
         # unpack header
         self._handle_error(header.error)
         header_error = header.error  # bone add in error handling
@@ -59,8 +57,7 @@ class netCDF_Decode(gRPC_netCDF):
         pass
 
     def _decode_response(self, group, var_name, data, slice_dict):
-        """Function to assign dimensions and update attributes"""
-    
+        """Function to assign dimensions and update attributes."""
         # start with updating attributes
         # coordinates are stored as variables so we process them when iterating through vars
         self.ds.attrs.update({attr.name: self._decode_data(attr.data) for attr in group.atts})

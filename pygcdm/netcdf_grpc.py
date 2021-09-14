@@ -76,7 +76,7 @@ class gRPC_netCDF():
                      'bad_path': 'Specified file path does not exist',
                      'bad_file': 'Specified file is not a netCDF file',
                      }
-        
+
         return grpc_msg.Error(message=error_dict[error_type], code=code)
 
     def interpret_section(self, section):

@@ -8,7 +8,6 @@ import re
 import math
 import os
 
-
 class netCDF_Encode(gRPC_netCDF):
     """Encode netCDF file into gRPC message type defined in `protos` folder."""
 
@@ -32,9 +31,9 @@ class netCDF_Encode(gRPC_netCDF):
             header_args['title'] = nc.getncattr('title') if 'title' in nc.ncattrs() else None
             header_args['id'] = nc.getncattr('id') if 'id' in nc.ncattrs() else None
             header_response_args['header'] = grpc_msg.Header(location=request.location,
-                                     root=self._encode_group(nc),
-                                     **header_args
-                                     )
+                                                             root=self._encode_group(nc),
+                                                             **header_args
+                                                             )
         # handle request errors
         except OSError:
             if not os.path.isfile(request.location):
@@ -44,7 +43,6 @@ class netCDF_Encode(gRPC_netCDF):
 
         finally:
             return grpc_msg.HeaderResponse(**header_response_args)
-
 
     def generate_data_from_request(self, request):
         """Method to take `DataRequest` message types and return a `DataResponse` message."""
@@ -72,15 +70,13 @@ class netCDF_Encode(gRPC_netCDF):
     def _interpret_var_spec(self, var_spec):
         var_name, *var_spec_slices = re.split(r'\(|\)|,', var_spec)
         var_spec_slices = var_spec_slices[:-1] if len(var_spec_slices) > 0 else None
-        print(var_spec_slices)
         return var_name, var_spec_slices
 
     def _interpret_slices(self, var_spec_slices, var_dims):
         # using definition from:
         # https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html
 
-        print(var_dims)
-        if var_spec_slices == None:
+        if var_spec_slices is None:
             section = grpc_msg.Section(ranges=[grpc_msg.Range(size=dim.size, stride=1) for dim in var_dims])
         else:
             ranges = []

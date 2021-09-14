@@ -5,11 +5,11 @@ import netCDF4 as nc4
 import os
 
 def test_interpret_spec():
-    nc = nc4.Dataset("test/data/test3.nc")
+    nc = nc4.Dataset('test/data/test3.nc')
     encoder = netCDF_Encode()
 
     # test variable name, no slices
-    var_spec = "analysed_sst"
+    var_spec = 'analysed_sst'
     var_name, slices = encoder._interpret_var_spec(var_spec)
     section = encoder._interpret_slices(slices, [*nc.dimensions.values()])
     sizes = [1, 720, 1440]
@@ -17,7 +17,7 @@ def test_interpret_spec():
     assert section == msg.Section(ranges=[msg.Range(size=s, stride=st) for s,st in zip(sizes, strides)])
 
     # test variable name, ellipses
-    var_spec = "analysed_sst(:,:,:)"
+    var_spec = 'analysed_sst(:,:,:)'
     var_name, slices = encoder._interpret_var_spec(var_spec)
     section = encoder._interpret_slices(slices, [*nc.dimensions.values()])
     sizes = [1, 720, 1440]
@@ -25,7 +25,7 @@ def test_interpret_spec():
     assert section == msg.Section(ranges=[msg.Range(size=s, stride=st) for s,st in zip(sizes, strides)])
 
     # test variable name, ellipses w/ space
-    var_spec = "analysed_sst(:, :, :)"
+    var_spec = 'analysed_sst(:, :, :)'
     var_name, slices = encoder._interpret_var_spec(var_spec)
     section = encoder._interpret_slices(slices, [*nc.dimensions.values()])
     sizes = [1, 720, 1440]
@@ -33,7 +33,7 @@ def test_interpret_spec():
     assert section == msg.Section(ranges=[msg.Range(size=s, stride=st) for s,st in zip(sizes, strides)])
 
     # test variable name, slices
-    var_spec = "analysed_sst(0, 0:719:10, 0:1439:10)"
+    var_spec = 'analysed_sst(0, 0:719:10, 0:1439:10)'
     var_name, slices = encoder._interpret_var_spec(var_spec)
     section = encoder._interpret_slices(slices, [*nc.dimensions.values()])
     sizes = [1, 72, 144]
@@ -41,7 +41,7 @@ def test_interpret_spec():
     assert section == msg.Section(ranges=[msg.Range(size=s, stride=st) for s,st in zip(sizes, strides)])
 
     # test variable name, slices, starts
-    var_spec = "analysed_sst(0, 200:700:10, 1300:1400:10)"
+    var_spec = 'analysed_sst(0, 200:700:10, 1300:1400:10)'
     var_name, slices = encoder._interpret_var_spec(var_spec)
     section = encoder._interpret_slices(slices, [*nc.dimensions.values()])
     sizes = [1, 51, 11]
