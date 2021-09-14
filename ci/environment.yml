@@ -11,5 +11,6 @@ dependencies:
   - coveralls=3.2.0
   - xarray=0.19.0
   - pip:
+    - pygcdm>=0.0.6
     - grpcio==1.39.0
     - grpcio-tools==1.39.0

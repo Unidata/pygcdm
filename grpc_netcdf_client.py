@@ -1,7 +1,7 @@
 import grpc
-from src.protogen import gcdm_netcdf_pb2 as grpc_msg
-from src.protogen import gcdm_server_pb2_grpc as grpc_server
-from src.netcdf_decode import netCDF_Decode
+from pygcdm.protogen import gcdm_netcdf_pb2 as grpc_msg
+from pygcdm.protogen import gcdm_server_pb2_grpc as grpc_server
+from pygcdm.netcdf_decode import netCDF_Decode
 
 def run():
     with grpc.insecure_channel('localhost:1234') as channel:
