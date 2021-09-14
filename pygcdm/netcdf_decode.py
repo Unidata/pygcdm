@@ -2,7 +2,7 @@
 
 import numpy as np
 import xarray as xr
-from src.pygcdm.netcdf_grpc import gRPC_netCDF
+from pygcdm.netcdf_grpc import gRPC_netCDF
 
 
 class netCDF_Decode(gRPC_netCDF):

@@ -20,7 +20,7 @@ URL = 'https://github.com/rmcsqrd/pygcdm'
 EMAIL = 'rmcsqrd@gmail.com'
 AUTHOR = 'Rio McMahon'
 REQUIRES_PYTHON = '>=3.9.0'
-VERSION = '0.0.1'
+VERSION = '0.0.6'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -84,8 +84,13 @@ class UploadCommand(Command):
         self.status('Building Source and Wheel (universal) distribution…')
         os.system('{0} setup.py sdist bdist_wheel --universal'.format(sys.executable))
 
+        upload_type = input("Which pypi should I upload to (test or real)? ")
         self.status('Uploading the package to PyPI via Twine…')
-        os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
+        if upload_type == "test":
+            os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
+        else:
+            os.system('twine upload dist/*')
+            #os.system('twine upload dist/*')
 
         self.status('Pushing git tags…')
         os.system('git tag v{0}'.format(about['__version__']))
@@ -105,9 +110,8 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=find_packages(exclude=["test", "*.test", "*.test.*", "test.*"]),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
+    packages=find_packages(exclude=["test", "**/__pycache_/"]),
+    #py_modules=['pygcdm'],
 
     # entry_points={
     #     'console_scripts': ['mycli=mymodule:cli'],

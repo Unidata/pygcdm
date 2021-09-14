@@ -1,11 +1,11 @@
 import pytest
-from src.pygcdm.netcdf_encode import *
-import src.pygcdm.protogen.gcdm_netcdf_pb2 as msg
+from pygcdm.netcdf_encode import *
+import pygcdm.protogen.gcdm_netcdf_pb2 as msg
 import netCDF4 as nc4
 import os
 
 def test_interpret_spec():
-    nc = nc4.Dataset("test/data/test3.nc")
+    nc = nc4.Dataset("data/test3.nc")
     encoder = netCDF_Encode()
 
     # test variable name, no slices
