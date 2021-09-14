@@ -1,6 +1,6 @@
 import pytest
-from src.netcdf_encode import *
-import src.protogen.gcdm_netcdf_pb2 as msg
+from src.pygcdm.netcdf_encode import *
+import src.pygcdm.protogen.gcdm_netcdf_pb2 as msg
 import netCDF4 as nc4
 import os
 

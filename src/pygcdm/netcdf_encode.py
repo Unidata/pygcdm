@@ -1,8 +1,8 @@
 """Class to encode netCDF file into a gRPC message."""
 
 import netCDF4 as nc4
-from src.protogen import gcdm_netcdf_pb2 as grpc_msg
-from src.netcdf_grpc import gRPC_netCDF
+from src.pygcdm.protogen import gcdm_netcdf_pb2 as grpc_msg
+from src.pygcdm.netcdf_grpc import gRPC_netCDF
 import numpy as np
 import re
 import math

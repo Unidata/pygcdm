@@ -1,6 +1,6 @@
 """Parent class with type conversions and  utilites for encode/decode classes."""
 
-from src.protogen import gcdm_netcdf_pb2 as grpc_msg
+from src.pygcdm.protogen import gcdm_netcdf_pb2 as grpc_msg
 import numpy as np
 
 
