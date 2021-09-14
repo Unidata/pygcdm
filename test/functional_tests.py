@@ -10,7 +10,7 @@ def test_encode_decode():
     # test encode/decode: entire variable
     encoder = netCDF_Encode()
     decoder = netCDF_Decode()
-    file_loc = "data/test3.nc"
+    file_loc = "test/data/test3.nc"
     var_spec = "analysed_sst"
     header_request = grpc_msg.HeaderRequest(location=file_loc)
     header_response = encoder.generate_header_from_request(header_request)
@@ -26,7 +26,7 @@ def test_encode_decode():
     # test encode/decode: entire variable via slicing
     encoder = netCDF_Encode()
     decoder = netCDF_Decode()
-    file_loc = "data/test3.nc"
+    file_loc = "test/data/test3.nc"
     var_spec = "analysed_sst(:,:,:)"
     header_request = grpc_msg.HeaderRequest(location=file_loc)
     header_response = encoder.generate_header_from_request(header_request)
@@ -44,7 +44,7 @@ def test_encode_decode():
     # test encode/decode: entire variable via arbitrary slicing
     encoder = netCDF_Encode()
     decoder = netCDF_Decode()
-    file_loc = "data/test3.nc"
+    file_loc = "test/data/test3.nc"
     var_spec = "analysed_sst(0,100:200,500:1301)"
     header_request = grpc_msg.HeaderRequest(location=file_loc)
     header_response = encoder.generate_header_from_request(header_request)

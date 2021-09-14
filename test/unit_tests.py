@@ -5,7 +5,7 @@ import netCDF4 as nc4
 import os
 
 def test_interpret_spec():
-    nc = nc4.Dataset("data/test3.nc")
+    nc = nc4.Dataset("test/data/test3.nc")
     encoder = netCDF_Encode()
 
     # test variable name, no slices
