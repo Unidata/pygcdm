@@ -20,7 +20,7 @@ URL = 'https://github.com/rmcsqrd/pygcdm'
 EMAIL = 'rmcsqrd@gmail.com'
 AUTHOR = 'Rio McMahon'
 REQUIRES_PYTHON = '>=3.9.0'
-VERSION = '0.0.7'
+VERSION = '0.0.8'
 
 # What packages are required for this module to be executed?
 REQUIRED = [

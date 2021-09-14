@@ -5,7 +5,7 @@ syntax = "proto3";
 
 package ucar.gcdm;
 
-import "gcdm_netcdf.proto";
+import "pygcdm/protogen/gcdm_netcdf.proto";
 
 option java_package = "ucar.gcdm";
 option java_outer_classname = "GcdmGridProto";

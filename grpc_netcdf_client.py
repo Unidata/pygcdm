@@ -6,7 +6,7 @@ from pygcdm.netcdf_decode import netCDF_Decode
 def run():
     with grpc.insecure_channel('localhost:1234') as channel:
         stub = grpc_server.GcdmStub(channel)
-        loc = './test/data/test.nc'
+        loc = 'test/data/test3.nc'
         variable_spec = "analysed_sst"
         requestMsg = grpc_msg.HeaderRequest(location=loc)
         dataMsg = grpc_msg.DataRequest(location=loc, variable_spec=variable_spec)
