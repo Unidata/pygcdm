@@ -1,5 +1,6 @@
 # pygcdm
 [![Coverage Status](https://coveralls.io/repos/github/rmcsqrd/netcdf-grpc/badge.svg?branch=coveralls)](https://coveralls.io/github/rmcsqrd/netcdf-grpc?branch=coveralls)
+![PyPI](https://img.shields.io/pypi/v/pygcdm)
 
 A python API for transferring [Common Data Model (CDM)](https://docs.unidata.ucar.edu/netcdf-java/current/userguide/common_data_model_overview.html) files using [Remote Procedure Calls](https://grpc.io/).
 
