@@ -18,50 +18,81 @@ class netCDF_Decode(gRPC_netCDF):
         with information.
         """
         super().__init__()
-        self.ds = xr.Dataset()
 
     # high level decode stuff
-    def generate_file_from_response(self, header, data, as_netcdf=False):
+    def generate_file_from_response(self, header, data=None, as_netcdf=False):
         """Interpret response messages and process responses into xarray dataset object.
+
+        `header` = `HeaderResponse` message to decode
+        `data` (optional) = `DataResponse` message to decode.
+        `as_netcdf` (optional) = Boolean, determines if file should be decoded as
+            `xarray.DataSet` object or `netCDF4.Dataset` object.
         """
+        # initialize ds object
+        ds = xr.Dataset()
+
         # unpack header
         self._handle_error(header.error)
         header_error = header.error  # bone add in error handling
         header_version = header.version
+        ds = self._decode_header_response(ds, header.header.root)
 
         # unpack data
-        self._handle_error(data.error)
-        data_error = data.error  # bone add in error handling
-        data_version = data.version
-        data_location = data.location
-        var_name = data.variable_spec.split('(')[0]
-        data_variable_full_name = data.var_full_name.strip('/')  # BONE how to handle this
+        if data is not None:
+            self._handle_error(data.error)
+            data_error = data.error  # bone add in error handling
+            data_version = data.version
+            data_location = data.location
+            var_name = data.variable_spec.split('(')[0]
+            data_variable_full_name = data.var_full_name.strip('/')  # BONE how to handle this
 
-        # create a list of slices from data section and header shapes by associating based on common variable name
-        for var in header.header.root.vars:
-            if var.name == var_name:
-                var_dims = [shape.name for shape in var.shapes]
-        slice_dict = dict(zip(var_dims, self.interpret_section(data.section)))
+            # create a list of slices from data section and header shapes by associating based on common variable name
+            for var in header.header.root.vars:
+                if var.name == var_name:
+                    var_dims = [shape.name for shape in var.shapes]
+            slice_dict = dict(zip(var_dims, self.interpret_section(data.section)))
 
-        # decode data
-        self._decode_response(header.header.root, var_name, data.data, slice_dict)
+            # decode data
+            ds = self._decode_data_response(ds, header.header.root, var_name, data.data, slice_dict)
 
         # return file based on user input
         if as_netcdf:
-            return self.ds.to_netcdf()
+            return ds.to_netcdf()
         else:
-            return self.ds
+            return ds
 
     def _handle_error(self, error):
         # bone implement this
         pass
 
-    def _decode_response(self, group, var_name, data, slice_dict):
-        """Function to assign dimensions and update attributes."""
+    def _decode_header_response(self, ds, group):
+        """Function to decode information in header response."""
         # start with updating attributes
         # coordinates are stored as variables so we process them when iterating through vars
-        self.ds.attrs.update({attr.name: self._decode_data(attr.data) for attr in group.atts})
+        ds.attrs.update({attr.name: self._decode_data(attr.data) for attr in group.atts})
+        for var in group.vars:
+            # `var` is the list of variables stored in the HeaderResponse message
+            # `data` is the actual (non-coordinate) data contained in the `DataResponse` message
 
+            # first handle coordinates
+            if var.name in [dim.name for dim in group.dims]:
+                coord_data = self._decode_data(var.data)
+                coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
+                if var.name in ds.dims:
+                    ds = ds.assign_coords({var.name: coord_data})
+                else:
+                    ds = ds.expand_dims(dim={var.name: coord_data})
+
+            # next handle named variable that is not coordinate
+            # this writes in variable attributes with variable values as `nan`
+            else:
+                ds[var.name] = xr.DataArray(
+                    attrs={attr.name: self._decode_data(attr.data) for attr in var.atts},
+                    )
+        return ds
+
+    def _decode_data_response(self, ds, group, var_name, data, slice_dict):
+        """Function to assign dimensions and update attributes."""
         # next unpack data
         for var in group.vars:
             # `var` is the list of variables stored in the HeaderResponse message
@@ -71,18 +102,24 @@ class netCDF_Decode(gRPC_netCDF):
             if var.name in slice_dict:
                 coord_data = self._decode_data(var.data)
                 coord_data = [coord_data] if isinstance(coord_data, int) else list(coord_data)
-                if var.name in self.ds.dims:
-                    self.ds = self.ds.assign_coords({var.name: coord_data[slice_dict[var.name]]})
+                if var.name in ds.dims:
+                    ds = ds.assign_coords({var.name: coord_data[slice_dict[var.name]]})
                 else:
-                    self.ds = self.ds.expand_dims(dim={var.name: coord_data[slice_dict[var.name]]})
+                    ds = ds.expand_dims(dim={var.name: coord_data[slice_dict[var.name]]})
 
             # next handle named variable that is not coordinate
-            if var.name == var_name:
-                self.ds[var.name] = xr.DataArray(
-                        dims=[dim.name for dim in var.shapes],
-                        attrs={attr.name: self._decode_data(attr.data) for attr in var.atts},
-                        data=np.array(self._decode_data(data)).reshape(data.shapes),
-                        )
+            elif var.name == var_name:
+                ds[var.name] = xr.DataArray(
+                    dims=[dim.name for dim in var.shapes],
+                    attrs={attr.name: self._decode_data(attr.data) for attr in var.atts},
+                    data=np.array(self._decode_data(data)).reshape(data.shapes),
+                    )
+
+            # _decode_header_response writes in dummy `nan` data so we remove if we're expecting data
+            else:
+                ds = ds.drop_vars(var.name)
+
+        return ds
 
     def _decode_data(self, data):
         dtype = self.get_message_data_type(data.data_type)
