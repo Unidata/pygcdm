@@ -50,7 +50,7 @@ class netCDF_Encode(gRPC_netCDF):
                                                          root=self._encode_group(nc),
                                                          **header_args
                                                          )
-        header_response_args['error'] = self._generate_error()
+        header_response_args['error'] = self._generate_error(None)
         return grpc_msg.HeaderResponse(**header_response_args)
 
     def generate_data_from_request(self, request):
@@ -74,27 +74,35 @@ class netCDF_Encode(gRPC_netCDF):
         except (FileNotFoundError, OSError):
             return grpc_msg.HeaderResponse(error=self._generate_error("bad_file"))
 
-        # check variable spec
+        # check variable spec: first check if works, next check specific failure mechanisms
         try:
             var_name, var_spec_slices = self._interpret_var_spec(request.variable_spec)
-        except:  # bone need to stress test this more including what can break it
+            try:  # check for proper variable name
+                assert var_name in nc.variables
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable"))
+            try:  # check for proper number of dimensions
+                if var_spec_slices is not None and len(var_spec_slices) != 0:
+                    assert len(var_spec_slices) == len(nc.variables[var_name].dimensions)
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable_dim_mismatch"))
+            try:  # check for slices don't exceed maximum variable dimension
+                section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
+                for rng, shape in zip(section.ranges, nc.variables[var_name].shape):
+                    assert shape >= rng.start + rng.size*rng.stride
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable_dim_exceed"))
+        except Exception as err:  
+            print(err)
             return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec"))
 
-        # validate var_name here
-        try:
-            assert var_name in nc.variables
-        except AssertionError:
-            return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable"))
-
         section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
-        # BONE error: validate section here aka make sure indices are good.
         slices = self.interpret_section(section)
         variable = nc.variables[var_name][(*slices,)]
         data_type = self.get_grpc_type(variable.dtype.type)
         data = self._encode_data(variable, data_type)
-        error = self._generate_error()
 
-        return grpc_msg.DataResponse(error=error,
+        return grpc_msg.DataResponse(error=self._generate_error(None),
                                      version=self.get_version(),
                                      location=request.location,
                                      variable_spec=request.variable_spec,

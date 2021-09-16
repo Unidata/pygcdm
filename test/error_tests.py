@@ -39,13 +39,6 @@ def test_class_error_handling():
     response = encoder.generate_data_from_request(msg)
     assert response.error.message == 'Specified file is not a netCDF file'
 
-    # error: general bad var_spec
-    msg = grpc_msg.DataRequest(location="test/data/test3.nc",
-                               variable_spec="not_analysed_sst" 
-                               )
-    response = encoder.generate_data_from_request(msg)
-    assert response.error.message == 'Incorrect variable spec: specified variable does not exist'
-
     # error: bad var_spec variable
     msg = grpc_msg.DataRequest(location="test/data/test3.nc",
                                variable_spec="not_analysed_sst" 
@@ -53,5 +46,18 @@ def test_class_error_handling():
     response = encoder.generate_data_from_request(msg)
     assert response.error.message == 'Incorrect variable spec: specified variable does not exist'
 
+    # error: bad var_spec variable dimension mismatch
+    msg = grpc_msg.DataRequest(location="test/data/test3.nc",
+                               variable_spec="analysed_sst(:,:,:,:)" 
+                               )
+    response = encoder.generate_data_from_request(msg)
+    assert response.error.message == 'Incorrect variable spec: number of specified dimensions does not match number of variable dimensions'
+
+    # error: bad var_spec variable dimension exceeds
+    msg = grpc_msg.DataRequest(location="test/data/test3.nc",
+                               variable_spec="analysed_sst(10,:,:)" 
+                               )
+    response = encoder.generate_data_from_request(msg)
+    assert response.error.message == 'Incorrect variable spec: size of specified dimension(s) exceeds size of specified variable dimension(s)'
 def test_grpc_error_reporting():
     pass
