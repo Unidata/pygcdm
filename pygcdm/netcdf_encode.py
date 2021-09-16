@@ -37,21 +37,20 @@ class netCDF_Encode(gRPC_netCDF):
         # check filetype is nc
         try:
             nc = nc4.Dataset(request.location)
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             return grpc_msg.HeaderResponse(error=self._generate_error("bad_file"))
-
 
         # finally generate header if error checks pass
         header_response_args = {}
         header_args = {}
         nc.set_auto_maskandscale(False)
-        header_response_args['error'] = self._generate_error()
         header_args['title'] = nc.getncattr('title') if 'title' in nc.ncattrs() else None
         header_args['id'] = nc.getncattr('id') if 'id' in nc.ncattrs() else None
         header_response_args['header'] = grpc_msg.Header(location=request.location,
                                                          root=self._encode_group(nc),
                                                          **header_args
                                                          )
+        header_response_args['error'] = self._generate_error()
         return grpc_msg.HeaderResponse(**header_response_args)
 
     def generate_data_from_request(self, request):
@@ -72,7 +71,7 @@ class netCDF_Encode(gRPC_netCDF):
         try:
             nc = nc4.Dataset(request.location)
             nc.set_auto_maskandscale(False)
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             return grpc_msg.HeaderResponse(error=self._generate_error("bad_file"))
 
         # check variable spec

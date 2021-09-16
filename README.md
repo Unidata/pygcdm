@@ -53,6 +53,30 @@ decoder = netCDF_Decode()
 ds = decoder.generate_file_from_response(header_response, data_response)
 ```
 
+### `variable_spec` Definition
+`variable_spec` is how you define which variable/data slices you want from the remote netCDF file. It follows [Backus-Naur form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form) according to the following definition, which was adopted from `netcdf-java` which is documented [here](https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html):
+```
+section specification := selector | selector '.' selector
+selector := varName ['(' dims ')']
+varName := ESCAPED_STRING
+
+
+dims := dim | dim, dims
+dim := ':' | slice | start ':' end | start ':' end ':' stride
+slice := INTEGER
+start := INTEGER
+stride := INTEGER
+end := INTEGER
+ESCAPED_STRING : must escape characters = ".("
+```
+In practice, this means that `variable_spec` can look like the following examples. Slicing notation is analogous to numpy slicing (but not identical).
+- `analysed_sst` 
+- `analysed_sst(:, :, :)`
+- `analysed_sst(0,0:719:10,0:1439:10)`
+- `analysed_sst(0,200:700:10,1300:1400:10)`
+Note that these examples are derived from some of the tests in `test/`. 
+
+
 ## Utilities
 
 ### Rebuilding the Package Locally
