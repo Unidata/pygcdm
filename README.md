@@ -66,7 +66,14 @@ ds = decoder.generate_file_from_response(header_response, data_response)
 ```
 
 ### Message Types<a name="msgtypes"></a>
+`pygcdm` has two message types `HeaderRequest` and `DataRequest` which have corresponding response types (`HeaderResponse`, `DataResponse` respectively). These messages can be learned about [here](https://grpc.io/docs/what-is-grpc/introduction/#working-with-protocol-buffers) and are defined in `protos/pygcdm/protogen/gcdm_netcdf.proto`. The main idea is that you pack your request messages with the information you want and unpack the response messages (`pygcdm` does this packing/unpacking for you). The `.proto` messages are pretty human readable but a description is provided here:
 
+`HeaderRequest`:
+- `location` (string): file location where netCDF file is found on machine delivering response
+
+`DataRequest`:
+- `location` (string): file location where netCDF file is found on machine delivering response
+- `variable_spec` (string): desctribes what netCDF variable/variable slices you want to request (see `variable_spec` section in this README)
 
 ### `variable_spec` Definition<a name="varspecdef"></a>
 `variable_spec` is how you define which variable/data slices you want from the remote netCDF file. It follows [Backus-Naur form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form) according to the following definition, which was adopted from `netcdf-java` which is documented [here](https://docs.unidata.ucar.edu/netcdf-java/7.0/javadoc/ucar/nc2/ParsedArraySectionSpec.html):
