@@ -1,7 +1,7 @@
 import pytest
-import importlib
-pygcdm = importlib.import_module("pygcdm", package="pygcdm")
-grpc_msg = pygcdm.protogen.gcdm_netcdf_pb2
+import sys; sys.path.append(".")
+import pygcdm
+import pygcdm.protogen.gcdm_netcdf_pb2 as grpc_msg
 import netCDF4 as nc4
 import os
 
