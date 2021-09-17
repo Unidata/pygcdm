@@ -50,7 +50,7 @@ class netCDF_Decode(gRPC_netCDF):
             data_version = data.version
             data_location = data.location
             var_name = data.variable_spec.split('(')[0]
-            data_variable_full_name = data.var_full_name.strip('/')  # TODO: make consistent with netcdf-java
+            data_variable_full_name = data.var_full_name.strip('/')  # TODO: make consistent with netcdf-java 
 
             # create a list of slices from data section and header shapes by associating based on common variable name
             for var in header.header.root.vars:
