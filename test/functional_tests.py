@@ -7,11 +7,27 @@ import netCDF4 as nc4
 
 def test_encode_decode():
 
+    # test encode/decode: error
+    encoder = netCDF_Encode()
+    decoder = netCDF_Decode()
+    file_loc = 'test/data/test3.nc'
+    var_spec = 'not_a_variable'
+    header_request = grpc_msg.HeaderRequest(location=file_loc)
+    header_response = encoder.generate_header_from_request(header_request)
+    data_request = grpc_msg.DataRequest(location=file_loc, variable_spec=var_spec)
+    data_response = encoder.generate_data_from_request(data_request)
+    ds = decoder.generate_file_from_response(header_response, data=data_response)
+    nc = nc4.Dataset(file_loc)
+    nc.set_auto_maskandscale(False)
+
+    assert type(ds) == xr.Dataset  # ensure that dataset is correct
+    assert "error message" in ds.attrs
+
     # test encode/decode: entire variable
     encoder = netCDF_Encode()
     decoder = netCDF_Decode()
     file_loc = 'test/data/test3.nc'
-    var_spec = 'analysed_sst'
+    var_spec = 'analysed_sst()'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
     header_response = encoder.generate_header_from_request(header_request)
     data_request = grpc_msg.DataRequest(location=file_loc, variable_spec=var_spec)

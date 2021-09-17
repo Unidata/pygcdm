@@ -93,7 +93,6 @@ class netCDF_Encode(gRPC_netCDF):
             except AssertionError:
                 return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable_dim_exceed"))
         except Exception as err:  
-            print(err)
             return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec"))
 
         section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
