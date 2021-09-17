@@ -27,7 +27,7 @@ def test_encode_decode():
     encoder = netCDF_Encode()
     decoder = netCDF_Decode()
     file_loc = 'test/data/test3.nc'
-    var_spec = 'analysed_sst()'
+    var_spec = 'analysed_sst'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
     header_response = encoder.generate_header_from_request(header_request)
     data_request = grpc_msg.DataRequest(location=file_loc, variable_spec=var_spec)
