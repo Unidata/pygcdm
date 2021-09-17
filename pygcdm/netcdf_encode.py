@@ -22,43 +22,86 @@ class netCDF_Encode(gRPC_netCDF):
 
     def generate_header_from_request(self, request):
         """Method to take `HeaderRequest` message types and return a `HeaderResponse` message."""
-        header_response_args = {}
-        header_args = {}
+        # check request type
+        try:
+            assert isinstance(request, grpc_msg.HeaderRequest)
+        except AssertionError:
+            return grpc_msg.HeaderResponse(error=self._generate_error("bad_request_header"))
+
+        # check request location
+        try:
+            assert os.path.isfile(request.location)
+        except AssertionError:
+            return grpc_msg.HeaderResponse(error=self._generate_error("bad_path"))
+
+        # check filetype is nc
         try:
             nc = nc4.Dataset(request.location)
-            nc.set_auto_maskandscale(False)
-            header_response_args['error'] = self._generate_error()
-            header_args['title'] = nc.getncattr('title') if 'title' in nc.ncattrs() else None
-            header_args['id'] = nc.getncattr('id') if 'id' in nc.ncattrs() else None
-            header_response_args['header'] = grpc_msg.Header(location=request.location,
-                                                             root=self._encode_group(nc),
-                                                             **header_args
-                                                             )
-        # handle request errors
-        except OSError:
-            if not os.path.isfile(request.location):
-                header_response_args['error'] = self._generate_error('bad_path')
-            else:
-                header_response_args['error'] = self._generate_error('bad_file')
+        except (FileNotFoundError, OSError):
+            return grpc_msg.HeaderResponse(error=self._generate_error("bad_file"))
 
-        finally:
-            return grpc_msg.HeaderResponse(**header_response_args)
+        # finally generate header if error checks pass
+        header_response_args = {}
+        header_args = {}
+        nc.set_auto_maskandscale(False)
+        header_args['title'] = nc.getncattr('title') if 'title' in nc.ncattrs() else None
+        header_args['id'] = nc.getncattr('id') if 'id' in nc.ncattrs() else None
+        header_response_args['header'] = grpc_msg.Header(location=request.location,
+                                                         root=self._encode_group(nc),
+                                                         **header_args
+                                                         )
+        header_response_args['error'] = self._generate_error(None)
+        return grpc_msg.HeaderResponse(**header_response_args)
 
     def generate_data_from_request(self, request):
         """Method to take `DataRequest` message types and return a `DataResponse` message."""
-        nc = nc4.Dataset(request.location)
-        nc.set_auto_maskandscale(False)
-        error = self._generate_error()  # need to figure out error handling
-        var_name, var_spec_slices = self._interpret_var_spec(request.variable_spec)
-        # BONE error: validate var_name here
+        # check request type
+        try:
+            assert isinstance(request, grpc_msg.DataRequest)
+        except AssertionError:
+            return grpc_msg.DataResponse(error=self._generate_error("bad_request_data"))
+
+        # check request location
+        try:
+            assert os.path.isfile(request.location)
+        except AssertionError:
+            return grpc_msg.DataResponse(error=self._generate_error("bad_path"))
+
+        # check filetype is nc
+        try:
+            nc = nc4.Dataset(request.location)
+            nc.set_auto_maskandscale(False)
+        except (FileNotFoundError, OSError):
+            return grpc_msg.HeaderResponse(error=self._generate_error("bad_file"))
+
+        # check variable spec: first check if works, next check specific failure mechanisms
+        try:
+            var_name, var_spec_slices = self._interpret_var_spec(request.variable_spec)
+            try:  # check for proper variable name
+                assert var_name in nc.variables
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable"))
+            try:  # check for proper number of dimensions
+                if var_spec_slices is not None and len(var_spec_slices) != 0:
+                    assert len(var_spec_slices) == len(nc.variables[var_name].dimensions)
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable_dim_mismatch"))
+            try:  # check for slices don't exceed maximum variable dimension
+                section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
+                for rng, shape in zip(section.ranges, nc.variables[var_name].shape):
+                    assert shape >= rng.start + rng.size*rng.stride
+            except AssertionError:
+                return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec_variable_dim_exceed"))
+        except Exception as err:  
+            return grpc_msg.HeaderResponse(error=self._generate_error("bad_varspec"))
+
         section = self._interpret_slices(var_spec_slices, nc.variables[var_name].get_dims())
-        # BONE error: validate section here
         slices = self.interpret_section(section)
         variable = nc.variables[var_name][(*slices,)]
         data_type = self.get_grpc_type(variable.dtype.type)
         data = self._encode_data(variable, data_type)
 
-        return grpc_msg.DataResponse(error=error,
+        return grpc_msg.DataResponse(error=self._generate_error(None),
                                      version=self.get_version(),
                                      location=request.location,
                                      variable_spec=request.variable_spec,

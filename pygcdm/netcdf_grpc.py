@@ -75,6 +75,12 @@ class gRPC_netCDF():
                      None: 'no error',
                      'bad_path': 'Specified file path does not exist',
                      'bad_file': 'Specified file is not a netCDF file',
+                     'bad_request_header': 'Message sent is not of type HeaderRequest',
+                     'bad_request_data': 'Message sent is not of type DataRequest',
+                     'bad_varspec': 'Incorrect variable spec: formatting not understood',
+                     'bad_varspec_variable': 'Incorrect variable spec: specified variable does not exist',
+                     'bad_varspec_variable_dim_mismatch': 'Incorrect variable spec: number of specified dimensions does not match number of variable dimensions',
+                     'bad_varspec_variable_dim_exceed': 'Incorrect variable spec: size of specified dimension(s) exceeds size of specified variable dimension(s)',
                      }
 
         return grpc_msg.Error(message=error_dict[error_type], code=code)

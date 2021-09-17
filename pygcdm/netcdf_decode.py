@@ -32,19 +32,25 @@ class netCDF_Decode(gRPC_netCDF):
         ds = xr.Dataset()
 
         # unpack header
-        self._handle_error(header.error)
-        header_error = header.error  # bone add in error handling
+        header_error = header.error  
+        if header.error.message != self._generate_error(None).message:
+            ds.attrs = {"error code": header.error.code, "error message":header.error.message}
+            return ds
+
         header_version = header.version
         ds = self._decode_header_response(ds, header.header.root)
 
         # unpack data
+
         if data is not None:
-            self._handle_error(data.error)
-            data_error = data.error  # bone add in error handling
+            if data.error.message != self._generate_error(None).message:
+                ds.attrs = {"error code": data.error.code, "error message":data.error.message}
+                return ds
+            data_error = data.error
             data_version = data.version
             data_location = data.location
             var_name = data.variable_spec.split('(')[0]
-            data_variable_full_name = data.var_full_name.strip('/')  # BONE how to handle this
+            data_variable_full_name = data.var_full_name.strip('/')  # TODO: make consistent with netcdf-java
 
             # create a list of slices from data section and header shapes by associating based on common variable name
             for var in header.header.root.vars:
@@ -60,10 +66,6 @@ class netCDF_Decode(gRPC_netCDF):
             return ds.to_netcdf()
         else:
             return ds
-
-    def _handle_error(self, error):
-        # bone implement this
-        pass
 
     def _decode_header_response(self, ds, group):
         """Function to decode information in header response."""
