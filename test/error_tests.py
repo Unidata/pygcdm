@@ -1,13 +1,13 @@
 import pytest
-from pygcdm.netcdf_encode import netCDF_Encode
-import pygcdm.protogen.gcdm_netcdf_pb2 as grpc_msg
-from pygcdm.netcdf_decode import netCDF_Decode
+import importlib
+pygcdm = importlib.import_module("pygcdm", package="pygcdm")
+grpc_msg = pygcdm.protogen.gcdm_netcdf_pb2
 import xarray as xr
 import netCDF4 as nc4
 
 def test_class_error_handling():
-    encoder = netCDF_Encode()
-    decoder = netCDF_Decode()
+    encoder = pygcdm.netCDF_Encode()
+    decoder = pygcdm.netCDF_Decode()
 
     ## HEADER FILE TESTS
     # error: not a HeaderRequest

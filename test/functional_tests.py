@@ -1,15 +1,15 @@
 import pytest
-from pygcdm.netcdf_encode import netCDF_Encode
-import pygcdm.protogen.gcdm_netcdf_pb2 as grpc_msg
-from pygcdm.netcdf_decode import netCDF_Decode
+import importlib
+pygcdm = importlib.import_module("pygcdm", package="pygcdm")
+grpc_msg = pygcdm.protogen.gcdm_netcdf_pb2
 import xarray as xr
 import netCDF4 as nc4
 
 def test_encode_decode():
 
     # test encode/decode: error
-    encoder = netCDF_Encode()
-    decoder = netCDF_Decode()
+    encoder = pygcdm.netCDF_Encode()
+    decoder = pygcdm.netCDF_Decode()
     file_loc = 'test/data/test3.nc'
     var_spec = 'not_a_variable'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
@@ -24,8 +24,8 @@ def test_encode_decode():
     assert "error message" in ds.attrs
 
     # test encode/decode: entire variable
-    encoder = netCDF_Encode()
-    decoder = netCDF_Decode()
+    encoder = pygcdm.netCDF_Encode()
+    decoder = pygcdm.netCDF_Decode()
     file_loc = 'test/data/test3.nc'
     var_spec = 'analysed_sst'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
@@ -40,8 +40,8 @@ def test_encode_decode():
     assert (ds.variables[var_spec][:].data == nc.variables[var_spec][:]).all()  # check if data matches
 
     # test encode/decode: entire variable via slicing
-    encoder = netCDF_Encode()
-    decoder = netCDF_Decode()
+    encoder = pygcdm.netCDF_Encode()
+    decoder = pygcdm.netCDF_Decode()
     file_loc = 'test/data/test3.nc'
     var_spec = 'analysed_sst(:,:,:)'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
@@ -58,8 +58,8 @@ def test_encode_decode():
     assert (ds.variables[var_name][:].data == nc.variables[var_name][encoder.interpret_section(section)]).all()  # check if data matches
 
     # test encode/decode: entire variable via arbitrary slicing
-    encoder = netCDF_Encode()
-    decoder = netCDF_Decode()
+    encoder = pygcdm.netCDF_Encode()
+    decoder = pygcdm.netCDF_Decode()
     file_loc = 'test/data/test3.nc'
     var_spec = 'analysed_sst(0,100:200,500:1301)'
     header_request = grpc_msg.HeaderRequest(location=file_loc)
