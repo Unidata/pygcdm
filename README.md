@@ -110,7 +110,7 @@ pip install .
 (You can verify installation by running `pip show -f pygcdm`).
 
 ### Committing the Package to PyPi<a name="buildpypi"></a>
-If you have the priviledges to do so, you can commit the package to PyPi by running the following command in the root folder:
+If you have the privileges to do so, you can commit the package to PyPi by running the following command in the root folder:
 ```
 python setup.py upload
 ```
